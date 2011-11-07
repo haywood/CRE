@@ -59,11 +59,13 @@ int search(state *s, char *str, int options)
     successors = NULL;
     match = 0;
 
-    for (start = 0; start < end && !match; ++start) {
+    for (start = 0; start < strlen(str) && !match; ++start) {
+
         for (end = strlen(str); end > start && !match; --end) {
 
             frontier = push(s, NULL);
 
+            /* consume the substring */
             for (i = start; i < end && frontier && !match; ++i) {
                 while (frontier) {
                     curr = pop(&frontier);
@@ -73,9 +75,8 @@ int search(state *s, char *str, int options)
                                 frontier = push(curr->c[k], frontier);
                     } else if (curr->s == str[i] || (curr->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
                         for (k = 0; k < 2; ++k)
-                            if (curr->c[k]) {
+                            if (curr->c[k])
                                 successors = push(curr->c[k], successors);
-                            }
                     }
                 }
                 frontier = successors;
