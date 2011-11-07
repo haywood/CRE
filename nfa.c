@@ -149,6 +149,7 @@ nfa * construct_nfa(char *re)
     lstack->s->c[0] = stalloc(l, NULL, NULL); \
     curr = lstack->s->c[0]; \
     prev = lstack->s; \
+    pushstates(prev); \
 } \
 
 #define popsub() { \
@@ -158,12 +159,12 @@ nfa * construct_nfa(char *re)
     curr = rstack->s->c[0]; \
     prev = rstack->s; \
     if (*(c+1) == '+') { \
-        rstack->s->c[1] = lstack->s; \
+        rstack->s->c[1] = lstack->s->c[0]; \
         c++; \
     } \
     else if (*(c+1) == '*') { \
         lstack->s->c[1] = rstack->s->c[0]; \
-        rstack->s->c[1] = lstack->s; \
+        rstack->s->c[1] = lstack->s->c[0]; \
         c++; \
     } \
     pop(&lstack); \
