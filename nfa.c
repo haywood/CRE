@@ -134,7 +134,7 @@ nfa * construct_nfa(char *re)
 #define pushstates(s) { n->states=push(s, n->states); n->n++; }
 
 #define localroot() { \
-    prev = lstack->s; \
+    prev = lstack->s->c[0]; \
     while (prev->c[0] && prev->c[1]) \
         prev = prev->c[1]; \
     if (!prev->c[0]) \
@@ -143,11 +143,12 @@ nfa * construct_nfa(char *re)
 } \
 
 #define pushsub(l, r) { \
-    lstack = push(stalloc(l, NULL, NULL), lstack); \
+    lstack = push(stalloc(EPSILON, NULL, NULL), lstack); \
     rstack = push(stalloc(r, NULL, NULL), rstack); \
     curr->c[0] = lstack->s; \
-    prev = curr; \
-    curr = lstack->s; \
+    lstack->s->c[0] = stalloc(l, NULL, NULL); \
+    curr = lstack->s->c[0]; \
+    prev = lstack->s; \
 } \
 
 #define popsub() { \
@@ -161,9 +162,8 @@ nfa * construct_nfa(char *re)
         c++; \
     } \
     else if (*(c+1) == '*') { \
-        lstack->s->c[0] = stalloc(EPSILON, lstack->s->c[0], lstack->s->c[1]); \
-        rstack->s->c[1] = lstack->s->c[0]; \
-        pushstates(lstack->s->c[0]); \
+        lstack->s->c[1] = rstack->s->c[0]; \
+        rstack->s->c[1] = lstack->s; \
         c++; \
     } \
     pop(&lstack); \
