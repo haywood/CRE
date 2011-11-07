@@ -51,20 +51,23 @@ int accepts(state *s, char *str, int options)
 
 int search_accepts(state *s, char *str, int options)
 {
-    node *olist;
+    node *clist, *olist;
     state *curr;
     int start, i, k, end;
 
     if (!s) return 0;
 
-    olist = push(s->start, olist);
+    clist = push(s->start, NULL);
     end = strlen(str);
-    while (1) {
-        curr = pop(olist);
-        if (start == end) {
-            while (olist) pop(olist);
-            free(curr);
 
+    while (1) {
+        curr = pop(clist);
+        if (start == end) {
+            while (clist)
+                pop(clist);
+            while (olist)
+                pop(olist);
+            return 0;
         }
         if (s->s == str[i]) {
             
