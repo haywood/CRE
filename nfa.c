@@ -15,7 +15,8 @@ int main(int argc, char **argv)
     nfa *d;
     if (argc > 2) {
         d = construct_nfa(argv[1]);
-        printf("%s ~= %s = %d\n", argv[1], argv[2], accepts(d->start, argv[2], DOTALL));
+        printf("%s match %s = %d\n", argv[1], argv[2], match(d->start, argv[2], DOTALL));
+        printf("%s search %s = %d\n", argv[1], argv[2], search(d->start, argv[2], DOTALL));
         printf("This nfa has %d states\n", d->n);
         free_nfa(d);
     }
@@ -31,54 +32,72 @@ state * stalloc(int c, state * c0, state * c1)
     return s;
 }
 
-int accepts(state *s, char *str, int options)
+int match(state *s, char *str, int options)
 {
     if (!s) return 0;
 
     if (epsilon(s))
-        return accepts(s->c[0], str, options) || accepts(s->c[1], str, options);
+        return match(s->c[0], str, options) || match(s->c[1], str, options);
 
     if (!*str) return accepting(s) ? 1 : 0;
 
-    if (s->s == *str)
-        return accepts(s->c[0], str+1, options) || accepts(s->c[1], str+1, options);
-    
-    if (s->s == DOT && ((options & DOTALL) || !isspace(*str)))
-    	return accepts(s->c[0], str+1, options) || accepts(s->c[1], str+1, options);
+    if (s->s == *str || (s->s == DOT && ((options & DOTALL) || !isspace(*str))))
+    	return match(s->c[0], str+1, options) || match(s->c[1], str+1, options);
     
     return 0;
 }
 
-int search_accepts(state *s, char *str, int options)
+int search(state *s, char *str, int options)
 {
-    node *clist, *olist;
+    node *frontier, *successors;
+    int start, i, k, end, match;
     state *curr;
-    int start, i, k, end;
+    char *c;
 
     if (!s) return 0;
 
-    clist = push(s->start, NULL);
-    end = strlen(str);
+    successors = NULL;
+    match = 0;
 
-    while (1) {
-        curr = pop(clist);
-        if (start == end) {
-            while (clist)
-                pop(clist);
-            while (olist)
-                pop(olist);
-            return 0;
+    for (start = 0; start < end && !match; ++start) {
+        for (end = strlen(str); end > start && !match; --end) {
+
+            frontier = push(s, NULL);
+
+            for (i = start; i < end && frontier && !match; ++i) {
+                while (frontier) {
+                    curr = pop(&frontier);
+                    if (epsilon(curr)) {
+                        for (k = 0; k < 2; ++k)
+                            if (curr->c[k])
+                                frontier = push(curr->c[k], frontier);
+                    } else if (curr->s == str[i] || (curr->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
+                        for (k = 0; k < 2; ++k)
+                            if (curr->c[k]) {
+                                successors = push(curr->c[k], successors);
+                            }
+                    }
+                }
+                frontier = successors;
+                successors = NULL;
+            }
+
+            /* search the frontier for an accepting state */ 
+            while (frontier) {
+                curr = pop(&frontier);
+                if (epsilon(curr)) {
+                    for (k = 0; k < 2; ++k)
+                        if (curr->c[k])
+                            frontier = push(curr->c[k], frontier);
+                } else if (accepting(curr)) {
+                    match = 1;
+                    while (frontier)
+                        pop(&frontier);
+                }
+            }
         }
-        if (s->s == str[i]) {
-            
-        }
-        if (s->s == DOT && ((options & DOTALL) || !isspace(str[i]))) {
-            
-        }
-        for (k = 0; k < 2; ++k)
-            if (curr->c[k])
-                olist = push(curr->c[k], olist);
     }
+    return match;
 }
 
 int epsilon(state *s) { return s->s > DOT; }

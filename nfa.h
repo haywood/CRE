@@ -36,10 +36,10 @@ typedef struct _nfa {
 state * stalloc(int, state *, state *);
 
 // Match a string against an nfa.
-int accepts(state *, char *, int);
+int match(state *, char *, int);
 
 // Search for a substring that the nfa accepts
-int search_accepts(state *, char *, int)
+int search(state *, char *, int);
 
 // check is state represents an epsilon transition
 int epsilon(state *);
@@ -52,5 +52,9 @@ int accepting(state *);
  * Precondition: the regular expression is legal.
  */
 nfa * construct_nfa(char *);
+
+node *push(state *, node *);
+
+state *pop(node **);
 
 void free_nfa(nfa *);
