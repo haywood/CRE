@@ -47,14 +47,22 @@ typedef struct _search_node {
     struct _search_node *next;
 } search_node;
 
+typedef struct _group {
+    unsigned int i[2];
+    struct _group *next;
+} group;
+
+typedef struct _match_object {
+    char *str;
+    group *groups;
+    unsigned int n;
+} match_object;
+
 /* allocate a state */
 state * stalloc(int, state *, state *);
 
-/* Match a string against an nfa. */
-int match(state *, char *, int);
-
 /* Search for a substring that the nfa accepts */
-int search(nfa *, char *, unsigned int, unsigned int **, int);
+int search(nfa *, char *, unsigned int,  match_object *, int);
 
 /* check is state represents an epsilon transition */
 int epsilon(state *);
@@ -67,21 +75,5 @@ int accepting(state *);
  * Precondition: the regular expression is legal.
  */
 nfa * construct_nfa(char *);
-
-node *make_node(state *, node *);
-
-node *push(state *, node *);
-
-state *pop(node **);
-
-void append_result(state *, int, result_node *);
-
-search_node *push_search(search_node *);
-
-result_node *pop_search(search_node **);
-
-result_node *push_result(state *, int , result_node *, result_node *);
-
-state *pop_result(result_node **);
 
 void free_nfa(nfa *);

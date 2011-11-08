@@ -2,6 +2,7 @@
  * nfa.c
  */
 
+#include <assert.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,15 +13,20 @@
 
 int main(int argc, char **argv)
 {
-    unsigned int *captures, k;
+    match_object m;
+    unsigned int k;
+    group *g;
     nfa *d;
     if (argc > 2) {
         d = construct_nfa(argv[1]);
-        printf("%s match %s = %d\n", argv[1], argv[2], match(d->start, argv[2], DOTALL));
-        printf("%s search %s = %d\n", argv[1], argv[2], search(d, argv[2], 0, &captures, DOTALL));
-        printf("%d groups:\n", captures[0]);
-        for (k = 1; k <= captures[0]; ++k) {
-            printf("%d %d %d\n", k, captures[k], captures[k+1]);
+        printf("%s search %s = %d\n", argv[1], argv[2], search(d, argv[2], 0, &m, DOTALL));
+        printf("%d groups:\n", m.n);
+        g = m.groups;
+        while (g) {
+            for (k = g->i[0]; k < g->i[1]; ++k)
+                putchar(m.str[k]);
+            putchar('\n');
+            g = g->next;
         }
         printf("This nfa has %d states\n", d->n);
         free_nfa(d);
@@ -36,140 +42,6 @@ state * stalloc(int c, state * c0, state * c1)
     s->c[1] = c1;
     return s;
 }
-
-int match(state *s, char *str, int options)
-{
-    if (!s) return 0;
-
-    if (epsilon(s))
-        return match(s->c[0], str, options) || match(s->c[1], str, options);
-
-    if (!*str) return accepting(s) ? 1 : 0;
-
-    if (s->s == *str || (s->s == DOT && ((options & DOTALL) || !isspace(*str))))
-    	return match(s->c[0], str+1, options) || match(s->c[1], str+1, options);
-    
-    return 0;
-}
-
-int search(nfa *n, char *str, unsigned int start, unsigned int **captures, int options)
-{
-    search_node *start_node, *list[2];
-    unsigned int ngroups, *groups, nrgroup, *rgroup;
-    unsigned int i, k, end, match;
-    state *cstate, *nstate;
-    result_node *frontier, *cres;
-
-    if (!n) return 0;
-
-    match = 0;
-
-    for (; start < strlen(str) && !match; ++start) {
-        for (end = strlen(str); end > start && !match; --end) {
-
-            list[0] = start_node = push_search(NULL);
-            start_node->n = push_result(n->start, start, NULL, NULL);
-            ngroups = nrgroup = 0;
-            groups = NULL;
-            rgroup = NULL;
-
-            for (i = start; i < end; ++i) {
-
-                list[1] = push_search(list[0]);
-                frontier = list[0]->n;
-
-                while (frontier) {
-                    cstate = frontier->s;
-                    if (epsilon(cstate)) {
-                        for (k = 0; k < N_KIDS; ++k)
-                            if (cstate->c[k]) {
-                                nstate = cstate->c[k];
-                                cstate->c[k] = (state *)malloc(sizeof(state));
-                                *cstate->c[k] = *nstate;
-                                append_result(cstate->c[k], i, frontier);
-                            }
-                    } else {
-                        if (cstate->s == str[i] || (cstate->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
-                            for (k = 0; k < N_KIDS; ++k)
-                                if (cstate->c[k]) {
-                                    nstate = cstate->c[k];
-                                    cstate->c[k] = (state *)malloc(sizeof(state));
-                                    *cstate->c[k] = *nstate;
-                                    if (list[1]->n) {
-                                        append_result(cstate->c[k], i+1, list[1]->n);
-                                    } else {
-                                        list[1]->n = push_result(cstate->c[k], i+1, frontier, NULL);
-                                    }
-                                }
-                        } else { frontier->i = -1; }
-                    }
-                    frontier = frontier->next;
-                }
-                list[0] = list[1];
-            }
-
-            frontier = list[0]->n;
-            while (frontier) {
-                cstate = frontier->s;
-                if (epsilon(cstate)) {
-                    for (k = 0; k < N_KIDS; ++k)
-                        if (cstate->c[k]) {
-                            nstate = cstate->c[k];
-                            cstate->c[k] = (state *)malloc(sizeof(state));
-                            *cstate->c[k] = *nstate;
-                            append_result(cstate->c[k], end, frontier);
-                        }
-                } else if (accepting(cstate)) {
-                    match = 1;
-                    cres = frontier;
-                    while (cres) {
-                        if (cres->s->s == RPAREN) {
-                            rgroup = (unsigned int *)realloc(rgroup, (nrgroup+1)*sizeof(unsigned int));
-                            rgroup[nrgroup] = cres->i;
-                            nrgroup++;
-                        } else if (cres->s->s == LPAREN) {
-                            groups = (unsigned int *)realloc(groups, 2*(ngroups+1)*sizeof(unsigned int));
-                            groups[2*ngroups-2] = cres->i;
-                            groups[2*ngroups-1] = rgroup[nrgroup-1];
-                            printf("%d %d\n", cres->i, rgroup[nrgroup-1]);
-                            ngroups++;
-
-                            nrgroup--;
-                            rgroup = (unsigned int *)realloc(rgroup, nrgroup*sizeof(unsigned int));
-                        }
-                        cres = cres->parent;
-                    }
-                    *captures = (unsigned int *)malloc((2*ngroups + 1)*sizeof(unsigned int));
-                    for (k = 1; k < 2*ngroups+1; ++k) { (*captures)[k] = groups[k-1]; }
-                    (*captures)[0] = ngroups;
-                    break;
-                }
-                frontier = frontier->next;
-            }
-
-            frontier = list[1]->n;
-            while (frontier) {
-                while (frontier)
-                    pop_result(&frontier);
-                pop_search(&list[1]);
-                if (list[1]) 
-                    frontier = list[1]->n;
-            }
-
-            free(rgroup);
-            free(groups);
-
-            if (n->accept->s == CASH) break;
-        }
-        if (n->start->s == CARET) break;
-    }
-
-    return match;
-}
-
-int epsilon(state *s) { return s->s > DOT; }
-
-int accepting(state * s) { return s->s == ACCEPT || s->s == CASH; }
 
 node * make_node(state * s, node * n)
 {
@@ -198,34 +70,6 @@ state * pop(node **n)
     return s;
 }
 
-void append_result(state *s, int i, result_node *n)
-{
-    while (n->next)
-        n = n->next;
-    n->next = push_result(s, i, n, NULL);
-}
-
-search_node *push_search(search_node *n)
-{
-    search_node *new_node = (search_node *)calloc(sizeof(search_node), 1);
-    new_node->next = n;
-    return new_node;
-}
-
-result_node *pop_search(search_node **n)
-{
-    search_node *prev;
-    result_node *p;
-
-    if (!*n) return NULL;
-
-    prev = *n;
-    p = (*n)->n;
-    *n = (*n)->next;
-    free(prev);
-    return p;
-}
-
 result_node *push_result(state *s, int i, result_node *p, result_node *n)
 {
     result_node *r = (result_node *)malloc(sizeof(result_node));
@@ -249,6 +93,145 @@ state *pop_result(result_node **n)
     free(prev);
     return s;
 }
+
+void append_result(state *s, int i, result_node *l, result_node *p, result_node *n)
+{
+    while (l->next)
+        l = l->next;
+    l->next = push_result(s, i, p, n);
+}
+
+search_node *push_search(search_node *n)
+{
+    search_node *new_node = (search_node *)calloc(sizeof(search_node), 1);
+    new_node->next = n;
+    return new_node;
+}
+
+result_node *pop_search(search_node **n)
+{
+    search_node *prev;
+    result_node *p;
+
+    if (!*n) return NULL;
+
+    prev = *n;
+    p = (*n)->n;
+    *n = (*n)->next;
+    free(prev);
+    return p;
+}
+
+group *make_group(int start, int end, group *n)
+{
+    group *g = (group *)malloc(sizeof(group));
+    g->i[0] = start;
+    g->i[1] = end;
+    g->next = n;
+    return g;
+}
+
+int search(nfa *n, char *str, unsigned int start, match_object *groups, int options)
+{
+    search_node *start_node, *list[2];
+    unsigned int nrgroup, *rgroup;
+    unsigned int i, k, end, match;
+    result_node *frontier, *cres;
+    state *cstate;
+
+    if (!n) return 0;
+    
+    groups->groups = NULL;
+    groups->str = NULL;
+    groups->n = 0;
+    match = 0;
+
+    for (; start < strlen(str) && !match; ++start) {
+        for (end = strlen(str); end > start && !match; --end) {
+
+            list[0] = start_node = push_search(NULL);
+            start_node->n = push_result(n->start, start, NULL, NULL);
+            rgroup = NULL;
+            nrgroup = 0;
+
+            for (i = start; i < end; ++i) {
+
+                list[1] = push_search(list[0]);
+                frontier = list[0]->n;
+
+                while (frontier) {
+                    cstate = frontier->s;
+                    if (epsilon(cstate)) {
+                        for (k = 0; k < N_KIDS; ++k)
+                            if (cstate->c[k]) { append_result(cstate->c[k], i, frontier, frontier, NULL); }
+                    } else if (cstate->s == str[i] || (cstate->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
+                            for (k = 0; k < N_KIDS; ++k)
+                                if (cstate->c[k]) {
+                                    if (list[1]->n) { append_result(cstate->c[k], i+1, list[1]->n, frontier, NULL); } 
+                                    else { list[1]->n = push_result(cstate->c[k], i+1, frontier, NULL); }
+                                }
+                    } else { frontier->i = -1; }
+                    frontier = frontier->next;
+                } /* while */
+                list[0] = list[1];
+            } /* for */
+
+            frontier = list[0]->n;
+            while (frontier) {
+                cstate = frontier->s;
+                if (epsilon(cstate)) {
+                    for (k = 0; k < N_KIDS; ++k)
+                        if (cstate->c[k]) { append_result(cstate->c[k], end, frontier, frontier, NULL); }
+                } else if (accepting(cstate)) {
+
+                    match = 1;
+                    groups->str = (char *)malloc((1+strlen(str))*sizeof(char));
+                    groups->groups = NULL;
+                    groups->n = 0;
+                    memcpy(groups->str, str, (1+strlen(str))*sizeof(char));
+                    cres = frontier;
+
+                    while (cres) {
+                        if (cres->s->s == RPAREN) {
+                            rgroup = (unsigned int *)realloc(rgroup, (nrgroup+1)*sizeof(unsigned int));
+                            rgroup[nrgroup] = cres->i;
+                            nrgroup++;
+                        } else if (nrgroup && cres->s->s == LPAREN) {
+                            groups->groups = make_group(cres->i, rgroup[nrgroup-1], groups->groups);
+                            groups->n++;
+
+                            nrgroup--;
+                            rgroup = (unsigned int *)realloc(rgroup, nrgroup*sizeof(unsigned int));
+                        }
+                        cres = cres->parent;
+                    } /* while */
+                    break;
+                } /* else if */
+                frontier = frontier->next;
+            } /* while */
+
+            frontier = list[0]->n;
+            while (frontier) {
+                while (frontier)
+                    pop_result(&frontier);
+                pop_search(&list[0]);
+                if (list[0]) 
+                    frontier = list[0]->n;
+            }
+
+            free(rgroup);
+
+            if (n->accept->s == CASH) break; /* anchor at end */
+        } /* for */
+        if (n->start->s == CARET) break; /* anchor at start */
+    } /* for */
+
+    return match;
+}
+
+int epsilon(state *s) { return s->s > DOT; }
+
+int accepting(state * s) { return s->s <= CASH; }
 
 nfa * construct_nfa(char *re)
 {
@@ -305,16 +288,19 @@ nfa * construct_nfa(char *re)
 
     lstack = make_node(n->start, NULL);
     rstack = make_node(n->accept, NULL);
+
+    curr = n->start->c[0] = stalloc(EPSILON, NULL, NULL);
     
     pushstates(n->start);
     pushstates(n->accept);
+    pushstates(curr);
 
     while (*c) {
 
         switch (*c) {
 
             case '^':
-                if (curr == n->start) {
+                if (curr == n->start->c[0]) {
                     addliteral(EPSILON);
                     n->start->s = CARET;
                 }
