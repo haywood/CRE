@@ -21,7 +21,7 @@ typedef enum {
 } nfa_symbol;
 
 typedef struct _state {
-    int s;
+    int s, mode;
     struct _state *c[N_KIDS];
 } state;
 
@@ -59,7 +59,7 @@ typedef struct _match_object {
 } match_object;
 
 /* allocate a state */
-state * stalloc(int, state *, state *);
+state * stalloc(int, state *, state *, int);
 
 /* Search for a substring that the nfa accepts */
 int search(nfa *, char *, unsigned int,  match_object *, int);

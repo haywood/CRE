@@ -34,12 +34,13 @@ int main(int argc, char **argv)
     return 0;
 }
 
-state * stalloc(int c, state * c0, state * c1)
+state * stalloc(int c, state * c0, state * c1, int m)
 {
     state * s = (state *)malloc(sizeof(state));
     s->s = c;
     s->c[0] = c0;
     s->c[1] = c1;
+    s->mode = m;
     return s;
 }
 
@@ -131,6 +132,15 @@ group *make_group(int start, int end, group *n)
     return g;
 }
 
+int matches(state *s, char c, int options)
+{
+    int matched = s->mode > 0 ? 1 : 0;
+    if (s->s == c) return matched;
+    if (s->s == DOT && ((options & DOTALL) || !isspace(c)))
+        return matched;
+    return !matched;
+}
+
 int search(nfa *n, char *str, unsigned int start, match_object *groups, int options)
 {
     search_node *start_node, *list[2];
@@ -164,7 +174,7 @@ int search(nfa *n, char *str, unsigned int start, match_object *groups, int opti
                     if (epsilon(cstate)) {
                         for (k = 0; k < N_KIDS; ++k)
                             if (cstate->c[k]) { append_result(cstate->c[k], i, frontier, frontier, NULL); }
-                    } else if (cstate->s == str[i] || (cstate->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
+                    } else if (matches(cstate, str[i], options)) {
                             for (k = 0; k < N_KIDS; ++k)
                                 if (cstate->c[k]) {
                                     if (list[1]->n) { append_result(cstate->c[k], i+1, list[1]->n, frontier, NULL); } 
@@ -238,7 +248,7 @@ nfa * construct_nfa(char *re)
     nfa *n = (nfa *)calloc(sizeof(nfa), 1);
     node *lstack, *rstack;
     state *curr, *next, *prev;
-    int brackets = 0;
+    int brackets = 0, mode = 1;
     char *c = re;
 
 #define pushstates(s) { n->states=push(s, n->states); n->n++; }
@@ -248,15 +258,15 @@ nfa * construct_nfa(char *re)
     while (prev->c[0] && prev->c[1]) \
         prev = prev->c[1]; \
     if (!prev->c[0]) \
-        prev = prev->c[0] = stalloc(EPSILON, NULL, prev->c[0]); \
-    else prev = prev->c[1] = stalloc(EPSILON, NULL, prev->c[1]); \
+        prev = prev->c[0] = stalloc(EPSILON, NULL, prev->c[0], mode); \
+    else prev = prev->c[1] = stalloc(EPSILON, NULL, prev->c[1], mode); \
 } \
 
 #define pushsub(l, r) { \
-    lstack = push(stalloc(EPSILON, NULL, NULL), lstack); \
-    rstack = push(stalloc(r, NULL, NULL), rstack); \
+    lstack = push(stalloc(EPSILON, NULL, NULL, mode), lstack); \
+    rstack = push(stalloc(r, NULL, NULL, mode), rstack); \
     curr->c[0] = lstack->s; \
-    lstack->s->c[0] = stalloc(l, NULL, NULL); \
+    lstack->s->c[0] = stalloc(l, NULL, NULL, mode); \
     curr = lstack->s->c[0]; \
     prev = lstack->s; \
     pushstates(prev); \
@@ -264,7 +274,7 @@ nfa * construct_nfa(char *re)
 
 #define popsub() { \
     curr->c[0] = rstack->s; \
-    rstack->s->c[0] = stalloc(EPSILON, NULL, NULL); \
+    rstack->s->c[0] = stalloc(EPSILON, NULL, NULL, mode); \
     pushstates(rstack->s); \
     curr = rstack->s->c[0]; \
     prev = rstack->s; \
@@ -279,17 +289,18 @@ nfa * construct_nfa(char *re)
     } \
     pop(&lstack); \
     pop(&rstack); \
+    mode = 1; \
 }
 
-#define addliteral(s) { curr->c[0] = stalloc(s, NULL, NULL); prev = curr; curr = curr->c[0]; }
+#define addliteral(s) { curr->c[0] = stalloc(s, NULL, NULL, mode); prev = curr; curr = curr->c[0]; }
 
-    n->start = curr = stalloc(EPSILON, NULL, NULL);
-    n->accept = stalloc(ACCEPT, NULL, NULL);
+    n->start = curr = stalloc(EPSILON, NULL, NULL, mode);
+    n->accept = stalloc(ACCEPT, NULL, NULL, mode);
 
     lstack = make_node(n->start, NULL);
     rstack = make_node(n->accept, NULL);
 
-    curr = n->start->c[0] = stalloc(EPSILON, NULL, NULL);
+    curr = n->start->c[0] = stalloc(EPSILON, NULL, NULL, mode);
     
     pushstates(n->start);
     pushstates(n->accept);
@@ -298,6 +309,14 @@ nfa * construct_nfa(char *re)
     while (*c) {
 
         switch (*c) {
+
+            case '~':
+                mode = -1;
+                if (*(c+1) != '(' && *(c+1) != '[') {
+                    addliteral(*++c);
+                    mode = 1;
+                } else addliteral(EPSILON);
+                break;
 
             case '^':
                 if (curr == n->start->c[0]) {
@@ -342,13 +361,13 @@ nfa * construct_nfa(char *re)
                 break;
 
             case '+':
-                next = stalloc(EPSILON, NULL, curr);
+                next = stalloc(EPSILON, NULL, curr, mode);
                 curr->c[0] = next;
                 curr = next;
                 break;
 
             case '*': /* kleene closure */
-                next = stalloc(EPSILON, NULL, curr);
+                next = stalloc(EPSILON, NULL, curr, mode);
                 prev->c[0] = next;
                 curr->c[0] = next;
                 curr = next;
@@ -361,7 +380,7 @@ nfa * construct_nfa(char *re)
             default: /* literals */
                 if (brackets) {
                     localroot(); /* set prev equal to a new root for the literal */
-                    next = stalloc(*c, rstack->s, NULL); /* create a state for the literal */
+                    next = stalloc(*c, rstack->s, NULL, mode); /* create a state for the literal */
                     prev->c[0] = next; /* set the new state as the root's child */
                     pushstates(prev); /* record prev */
                     curr = next; /* make sure curr is prepared to continue the chain */
