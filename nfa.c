@@ -12,11 +12,16 @@
 
 int main(int argc, char **argv)
 {
+    unsigned int *captures, k;
     nfa *d;
     if (argc > 2) {
         d = construct_nfa(argv[1]);
         printf("%s match %s = %d\n", argv[1], argv[2], match(d->start, argv[2], DOTALL));
-        printf("%s search %s = %d\n", argv[1], argv[2], search(d->start, argv[2], DOTALL));
+        printf("%s search %s = %d\n", argv[1], argv[2], search(d, argv[2], 0, &captures, DOTALL));
+        printf("%d groups:\n", captures[0]);
+        for (k = 1; k <= captures[0]; ++k) {
+            printf("%d %d %d\n", k, captures[k], captures[k+1]);
+        }
         printf("This nfa has %d states\n", d->n);
         free_nfa(d);
     }
@@ -47,63 +52,124 @@ int match(state *s, char *str, int options)
     return 0;
 }
 
-int search(state *s, char *str, int options)
+int search(nfa *n, char *str, unsigned int start, unsigned int **captures, int options)
 {
-    node *frontier, *successors;
-    int start, i, k, end, match;
-    state *curr;
-    char *c;
+    search_node *start_node, *list[2];
+    unsigned int ngroups, *groups, nrgroup, *rgroup;
+    unsigned int i, k, end, match;
+    state *cstate, *nstate;
+    result_node *frontier, *cres;
 
-    if (!s) return 0;
+    if (!n) return 0;
 
-    successors = NULL;
     match = 0;
 
-    for (start = 0; start < strlen(str) && !match; ++start) {
-
+    for (; start < strlen(str) && !match; ++start) {
         for (end = strlen(str); end > start && !match; --end) {
 
-            frontier = push(s, NULL);
+            list[0] = start_node = push_search(NULL);
+            start_node->n = push_result(n->start, start, NULL, NULL);
+            ngroups = nrgroup = 0;
+            groups = NULL;
+            rgroup = NULL;
 
-            /* consume the substring */
-            for (i = start; i < end && frontier && !match; ++i) {
+            for (i = start; i < end; ++i) {
+
+                list[1] = push_search(list[0]);
+                frontier = list[0]->n;
+
                 while (frontier) {
-                    curr = pop(&frontier);
-                    if (epsilon(curr)) {
-                        for (k = 0; k < 2; ++k)
-                            if (curr->c[k])
-                                frontier = push(curr->c[k], frontier);
-                    } else if (curr->s == str[i] || (curr->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
-                        for (k = 0; k < 2; ++k)
-                            if (curr->c[k])
-                                successors = push(curr->c[k], successors);
+                    cstate = frontier->s;
+                    if (epsilon(cstate)) {
+                        for (k = 0; k < N_KIDS; ++k)
+                            if (cstate->c[k]) {
+                                nstate = cstate->c[k];
+                                cstate->c[k] = (state *)malloc(sizeof(state));
+                                *cstate->c[k] = *nstate;
+                                append_result(cstate->c[k], i, frontier);
+                            }
+                    } else {
+                        if (cstate->s == str[i] || (cstate->s == DOT && ((options & DOTALL) || !isspace(str[i])))) {
+                            for (k = 0; k < N_KIDS; ++k)
+                                if (cstate->c[k]) {
+                                    nstate = cstate->c[k];
+                                    cstate->c[k] = (state *)malloc(sizeof(state));
+                                    *cstate->c[k] = *nstate;
+                                    if (list[1]->n) {
+                                        append_result(cstate->c[k], i+1, list[1]->n);
+                                    } else {
+                                        list[1]->n = push_result(cstate->c[k], i+1, frontier, NULL);
+                                    }
+                                }
+                        } else { frontier->i = -1; }
                     }
+                    frontier = frontier->next;
                 }
-                frontier = successors;
-                successors = NULL;
+                list[0] = list[1];
             }
 
-            /* search the frontier for an accepting state */ 
+            frontier = list[0]->n;
             while (frontier) {
-                curr = pop(&frontier);
-                if (epsilon(curr)) {
-                    for (k = 0; k < 2; ++k)
-                        if (curr->c[k])
-                            frontier = push(curr->c[k], frontier);
-                } else if (accepting(curr)) {
+                cstate = frontier->s;
+                if (epsilon(cstate)) {
+                    for (k = 0; k < N_KIDS; ++k)
+                        if (cstate->c[k]) {
+                            nstate = cstate->c[k];
+                            cstate->c[k] = (state *)malloc(sizeof(state));
+                            *cstate->c[k] = *nstate;
+                            append_result(cstate->c[k], end, frontier);
+                        }
+                } else if (accepting(cstate)) {
                     match = 1;
-                    while (frontier)
-                        pop(&frontier);
+                    cres = frontier;
+                    while (cres) {
+                        if (cres->s->s == RPAREN) {
+                            rgroup = (unsigned int *)realloc(rgroup, (nrgroup+1)*sizeof(unsigned int));
+                            rgroup[nrgroup] = cres->i;
+                            nrgroup++;
+                        } else if (cres->s->s == LPAREN) {
+                            groups = (unsigned int *)realloc(groups, 2*(ngroups+1)*sizeof(unsigned int));
+                            groups[2*ngroups-2] = cres->i;
+                            groups[2*ngroups-1] = rgroup[nrgroup-1];
+                            printf("%d %d\n", cres->i, rgroup[nrgroup-1]);
+                            ngroups++;
+
+                            nrgroup--;
+                            rgroup = (unsigned int *)realloc(rgroup, nrgroup*sizeof(unsigned int));
+                        }
+                        cres = cres->parent;
+                    }
+                    *captures = (unsigned int *)malloc((2*ngroups + 1)*sizeof(unsigned int));
+                    for (k = 1; k < 2*ngroups+1; ++k) { (*captures)[k] = groups[k-1]; }
+                    (*captures)[0] = ngroups;
+                    break;
                 }
+                frontier = frontier->next;
             }
+
+            frontier = list[1]->n;
+            while (frontier) {
+                while (frontier)
+                    pop_result(&frontier);
+                pop_search(&list[1]);
+                if (list[1]) 
+                    frontier = list[1]->n;
+            }
+
+            free(rgroup);
+            free(groups);
+
+            if (n->accept->s == CASH) break;
         }
+        if (n->start->s == CARET) break;
     }
+
     return match;
 }
 
 int epsilon(state *s) { return s->s > DOT; }
 
-int accepting(state * s) { return s->s == ACCEPT; }
+int accepting(state * s) { return s->s == ACCEPT || s->s == CASH; }
 
 node * make_node(state * s, node * n)
 {
@@ -113,11 +179,72 @@ node * make_node(state * s, node * n)
     return new_node;
 }
 
-node * push(state *s, node *n) { return make_node(s, n); }
+node * push(state *s, node *n) { 
+    if (!s) return n;
+    return make_node(s, n); 
+}
+
 state * pop(node **n)
 {
-    state *s = (*n)->s;
-    node *prev = *n;
+    node *prev;
+    state *s;
+
+    if (!*n) return NULL;
+
+    s = (*n)->s;
+    prev = *n;
+    *n = (*n)->next;
+    free(prev);
+    return s;
+}
+
+void append_result(state *s, int i, result_node *n)
+{
+    while (n->next)
+        n = n->next;
+    n->next = push_result(s, i, n, NULL);
+}
+
+search_node *push_search(search_node *n)
+{
+    search_node *new_node = (search_node *)calloc(sizeof(search_node), 1);
+    new_node->next = n;
+    return new_node;
+}
+
+result_node *pop_search(search_node **n)
+{
+    search_node *prev;
+    result_node *p;
+
+    if (!*n) return NULL;
+
+    prev = *n;
+    p = (*n)->n;
+    *n = (*n)->next;
+    free(prev);
+    return p;
+}
+
+result_node *push_result(state *s, int i, result_node *p, result_node *n)
+{
+    result_node *r = (result_node *)malloc(sizeof(result_node));
+    r->s = s;
+    r->i = i;
+    r->parent = p;
+    r->next = n;
+    return r;
+}
+
+state *pop_result(result_node **n)
+{
+    result_node *prev;
+    state *s;
+
+    if (!*n) return NULL;
+
+    prev = *n;
+    s = (*n)->s;
     *n = (*n)->next;
     free(prev);
     return s;
@@ -171,7 +298,7 @@ nfa * construct_nfa(char *re)
     pop(&rstack); \
 }
 
-#define addliteral(s) { next = stalloc(s, NULL, NULL); curr->c[0] = next; prev = curr; curr = next; }
+#define addliteral(s) { curr->c[0] = stalloc(s, NULL, NULL); prev = curr; curr = curr->c[0]; }
 
     n->start = curr = stalloc(EPSILON, NULL, NULL);
     n->accept = stalloc(ACCEPT, NULL, NULL);
@@ -185,6 +312,20 @@ nfa * construct_nfa(char *re)
     while (*c) {
 
         switch (*c) {
+
+            case '^':
+                if (curr == n->start) {
+                    addliteral(EPSILON);
+                    n->start->s = CARET;
+                }
+                break;
+
+            case '$':
+                if (!*(c+1)) {
+                    addliteral(EPSILON);
+                    n->accept->s = CASH;
+                }
+                break;
 
             case '\\':
                 addliteral(*++c);
@@ -228,10 +369,7 @@ nfa * construct_nfa(char *re)
                 break;
 
             case '.': /* wild card */
-                next = stalloc(DOT, NULL, NULL);
-                curr->c[0] = next;
-                prev = curr;
-                curr = next;
+                addliteral(DOT);
                 break;
 
             default: /* literals */
@@ -263,7 +401,9 @@ nfa * construct_nfa(char *re)
 
 void free_nfa(nfa *n)
 {
-    while (n->states)
+    while (n->states) {
+        free(n->states->s);
         pop(&n->states);
+    }
     free(n);
 }
