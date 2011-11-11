@@ -19,7 +19,8 @@ int main(int argc, char **argv)
     nfa *d;
     if (argc > 2) {
         d = construct_nfa(argv[1]);
-        printf("%s search %s = %d\n", argv[1], argv[2], search(d, argv[2], 0, &m, DOTALL));
+        printf("%s search %s = %d\n", argv[1], argv[2], 
+                search(d->start, argv[2], 0, &m, d->start->s == CARET, d->accept->s == CASH, DOTALL));
         printf("%d groups:\n", m.n);
         g = m.groups;
         while (g) {
@@ -29,19 +30,10 @@ int main(int argc, char **argv)
             g = g->next;
         }
         printf("This nfa has %d states\n", d->n);
+        printf("Match empty: %d\n", d->match_empty);
         free_nfa(d);
     }
     return 0;
-}
-
-state * stalloc(int c, state * c0, state * c1, int m)
-{
-    state * s = (state *)malloc(sizeof(state));
-    s->s = c;
-    s->c[0] = c0;
-    s->c[1] = c1;
-    s->mode = m;
-    return s;
 }
 
 node * make_node(state * s, node * n)
@@ -50,6 +42,15 @@ node * make_node(state * s, node * n)
     new_node->s = s;
     new_node->next = n;
     return new_node;
+}
+
+state * stalloc(int c, state *child, int m)
+{
+    state * s = (state *)malloc(sizeof(state));
+    s->s = c;
+    s->child = child ? make_node(child, NULL) : NULL;
+    s->mode = m;
+    return s;
 }
 
 node * push(state *s, node *n) { 
@@ -123,6 +124,12 @@ result_node *pop_search(search_node **n)
     return p;
 }
 
+void append_result_to_search(state *s, int i, search_node *l, result_node *p, result_node *n)
+{
+    if (!l->n) l->n = push_result(s, i, p, n);
+    else append_result(s, i, l->n, p, n);
+}
+
 group *make_group(int start, int end, group *n)
 {
     group *g = (group *)malloc(sizeof(group));
@@ -141,26 +148,28 @@ int matches(state *s, char c, int options)
     return !matched;
 }
 
-int search(nfa *n, char *str, unsigned int start, match_object *groups, int options)
+int search(state *s, char *str, unsigned int start, match_object *groups, int matchstart, int matchend, int options)
 {
     search_node *start_node, *list[2];
     unsigned int nrgroup, *rgroup;
-    unsigned int i, k, end, match;
+    unsigned int i, end, match, len;
     result_node *frontier, *cres;
     state *cstate;
+    node *child;
 
-    if (!n) return 0;
-    
+    if (!s) return 0;
+
+    len = strlen(str);
     groups->groups = NULL;
     groups->str = NULL;
     groups->n = 0;
     match = 0;
 
-    for (; start < strlen(str) && !match; ++start) {
-        for (end = strlen(str); end > start && !match; --end) {
+    for (; start < len && !match; ++start) {
+        for (end = len; end > start && !match; --end) {
 
             list[0] = start_node = push_search(NULL);
-            start_node->n = push_result(n->start, start, NULL, NULL);
+            start_node->n = push_result(s, start, NULL, NULL);
             rgroup = NULL;
             nrgroup = 0;
 
@@ -171,32 +180,57 @@ int search(nfa *n, char *str, unsigned int start, match_object *groups, int opti
 
                 while (frontier) {
                     cstate = frontier->s;
-                    if (epsilon(cstate)) {
-                        for (k = 0; k < N_KIDS; ++k)
-                            if (cstate->c[k]) { append_result(cstate->c[k], i, frontier, frontier, NULL); }
-                    } else if (matches(cstate, str[i], options)) {
-                            for (k = 0; k < N_KIDS; ++k)
-                                if (cstate->c[k]) {
-                                    if (list[1]->n) { append_result(cstate->c[k], i+1, list[1]->n, frontier, NULL); } 
-                                    else { list[1]->n = push_result(cstate->c[k], i+1, frontier, NULL); }
+                    child = cstate->child;
+                        
+                    if (cstate->s == CARET || cstate->s == EPSILON || cstate->s == RBRACKET || cstate->s == RPAREN || cstate->s == LPAREN) {
+                        while (child) {
+                            append_result(child->s, i, frontier, frontier, NULL);
+                            child = child->next;
+                        }
+                    } else if (cstate->s == LBRACKET) {
+                        if (cstate->mode == PLUS) {
+                            while (child) {
+                                append_result(child->s, i, frontier, frontier, NULL);
+                                child = child->next;
+                            }
+                        } else {
+                            while (child && cstate && child->s != cstate->child->s->child->s) {
+                                if (!matches(child->s, str[i], options)) {
+                                    cstate = NULL;
                                 }
-                    } else { frontier->i = -1; }
+                                child = child->next;
+                            }
+                            if (cstate) {
+                                append_result_to_search(cstate->child->s->child->s, i+1, list[1], frontier, NULL);
+                            }
+                        }
+                    } else if (matches(cstate, str[i], options)) {
+                            while (child) {
+                                append_result_to_search(child->s, i+1, list[1], frontier, NULL);
+                                child = child->next;
+                            }
+                    }
                     frontier = frontier->next;
+
                 } /* while */
+
                 list[0] = list[1];
+
             } /* for */
 
             frontier = list[0]->n;
             while (frontier) {
                 cstate = frontier->s;
-                if (epsilon(cstate)) {
-                    for (k = 0; k < N_KIDS; ++k)
-                        if (cstate->c[k]) { append_result(cstate->c[k], end, frontier, frontier, NULL); }
+                if (cstate->s == EPSILON || cstate->s == RBRACKET || cstate->s == RPAREN) {
+                    child = cstate->child;
+                    while (child) {
+                        append_result(child->s, end, frontier, frontier, NULL);
+                        child = child->next;
+                    }
                 } else if (accepting(cstate)) {
-
                     match = 1;
+                    puts("matched");
                     groups->str = (char *)malloc((1+strlen(str))*sizeof(char));
-                    groups->groups = NULL;
                     groups->n = 0;
                     memcpy(groups->str, str, (1+strlen(str))*sizeof(char));
                     cres = frontier;
@@ -231,9 +265,9 @@ int search(nfa *n, char *str, unsigned int start, match_object *groups, int opti
 
             free(rgroup);
 
-            if (n->accept->s == CASH) break; /* anchor at end */
+            if (matchend) break; /* anchor at end */
         } /* for */
-        if (n->start->s == CARET) break; /* anchor at start */
+        if (matchstart) break; /* anchor at start */
     } /* for */
 
     return match;
@@ -241,165 +275,213 @@ int search(nfa *n, char *str, unsigned int start, match_object *groups, int opti
 
 int epsilon(state *s) { return s->s > DOT; }
 
-int accepting(state * s) { return s->s <= CASH; }
+int accepting(state * s) { return s->s == ACCEPT || s->s == CASH; }
+
+state *add_child(state *p, state *c)
+{
+    node *s, *child;
+
+    child = make_node(c, NULL);
+    s = p->child;
+    if (!s) {
+        p->child = child;
+    } else {
+        while (s->next) 
+            s = s->next;
+        s->next = child;
+    }
+    return c;
+}
+
+void add_state(nfa *n, state *s)
+{
+    n->states = push(s, n->states);
+    n->n++;
+}
 
 nfa * construct_nfa(char *re)
 {
+    result_node *frontier;
     nfa *n = (nfa *)calloc(sizeof(nfa), 1);
-    node *lstack, *rstack;
     state *curr, *next, *prev;
-    int brackets = 0, mode = 1;
+    node *lstack, *rstack;
+    int mode = 1;
     char *c = re;
 
-#define pushstates(s) { n->states=push(s, n->states); n->n++; }
+    lstack = rstack = NULL;
+    lstack = push(stalloc(EPSILON, NULL, PLUS), lstack);
+    rstack = push(stalloc(ACCEPT, NULL, PLUS), rstack);
 
-#define localroot() { \
-    prev = lstack->s->c[0]; \
-    while (prev->c[0] && prev->c[1]) \
-        prev = prev->c[1]; \
-    if (!prev->c[0]) \
-        prev = prev->c[0] = stalloc(EPSILON, NULL, prev->c[0], mode); \
-    else prev = prev->c[1] = stalloc(EPSILON, NULL, prev->c[1], mode); \
-} \
+    curr = prev = n->start = lstack->s;
+    n->accept = rstack->s;
 
-#define pushsub(l, r) { \
-    lstack = push(stalloc(EPSILON, NULL, NULL, mode), lstack); \
-    rstack = push(stalloc(r, NULL, NULL, mode), rstack); \
-    curr->c[0] = lstack->s; \
-    lstack->s->c[0] = stalloc(l, NULL, NULL, mode); \
-    curr = lstack->s->c[0]; \
-    prev = lstack->s; \
-    pushstates(prev); \
-} \
-
-#define popsub() { \
-    curr->c[0] = rstack->s; \
-    rstack->s->c[0] = stalloc(EPSILON, NULL, NULL, mode); \
-    pushstates(rstack->s); \
-    curr = rstack->s->c[0]; \
-    prev = rstack->s; \
-    if (*(c+1) == '+') { \
-        rstack->s->c[1] = lstack->s->c[0]; \
-        c++; \
-    } \
-    else if (*(c+1) == '*') { \
-        lstack->s->c[1] = rstack->s->c[0]; \
-        rstack->s->c[1] = lstack->s->c[0]; \
-        c++; \
-    } \
-    pop(&lstack); \
-    pop(&rstack); \
-    mode = 1; \
-}
-
-#define addliteral(s) { curr->c[0] = stalloc(s, NULL, NULL, mode); prev = curr; curr = curr->c[0]; }
-
-    n->start = curr = stalloc(EPSILON, NULL, NULL, mode);
-    n->accept = stalloc(ACCEPT, NULL, NULL, mode);
-
-    lstack = make_node(n->start, NULL);
-    rstack = make_node(n->accept, NULL);
-
-    curr = n->start->c[0] = stalloc(EPSILON, NULL, NULL, mode);
-    
-    pushstates(n->start);
-    pushstates(n->accept);
-    pushstates(curr);
+    add_state(n, lstack->s);
+    add_state(n, rstack->s);
 
     while (*c) {
 
         switch (*c) {
 
-            case '~':
-                mode = -1;
+            case '\\': /* escape */
+                prev = curr;
+                curr = add_child(curr, stalloc(*++c, NULL, lstack->s->mode));
+                add_state(n, curr);
+                break;
+
+            case '~':/* negation */
                 if (*(c+1) != '(' && *(c+1) != '[') {
-                    addliteral(*++c);
-                    mode = 1;
-                } else addliteral(EPSILON);
-                break;
-
-            case '^':
-                if (curr == n->start->c[0]) {
-                    addliteral(EPSILON);
-                    n->start->s = CARET;
+                    prev = curr;
+                    curr = add_child(curr, stalloc(*++c, NULL, -lstack->s->mode));
+                    add_state(n, curr);
                 }
                 break;
+                
 
-            case '$':
-                if (!*(c+1)) {
-                    addliteral(EPSILON);
-                    n->accept->s = CASH;
+            case '^': /* begin anchor */
+                if (curr == n->start) n->start->s = CARET;
+                break;
+
+            case '$': /* end anchor */
+                if (!*(c+1)) n->accept->s = CASH;
+                break;
+
+            case '[': /* brackets */
+                if (*(c+1) == '^') {
+                    mode = MINUS;
+                    c++;
                 }
-                break;
+                next = add_child(curr, stalloc(EPSILON, NULL, mode));
+                add_state(n, add_child(next, stalloc(LBRACKET, NULL, mode)));
+                lstack = push(next, lstack);
+                rstack = push(stalloc(RBRACKET, NULL, mode), rstack);
+                prev = lstack->s->child->s;
+                while (*++c != ']') {
+                    curr = add_child(prev, stalloc(*c, rstack->s, mode));
+                    add_state(n, curr);
+                }
 
-            case '\\':
-                addliteral(*++c);
-                break;
+                add_state(n, lstack->s);
+                add_state(n, rstack->s);
 
-            case '[': /* start of brackets */
-                pushsub(LBRACKET, RBRACKET);
-                brackets = 1;
-                break;
+                prev = lstack->s;
+                curr = rstack->s;
 
-            case ']':
-                brackets = 0;
-                popsub();
+                mode = PLUS;
+
+                pop(&lstack);
+                pop(&rstack);
+
                 break;
 
             case '(': /* start of subexpression */
-                pushsub(LPAREN, RPAREN);
+                lstack = push(add_child(curr, stalloc(EPSILON, NULL, mode)), lstack);
+                rstack = push(stalloc(RPAREN, NULL, mode), rstack);
+                add_state(n, lstack->s);
+                add_state(n, rstack->s);
+
+                curr = add_child(lstack->s, stalloc(LPAREN, NULL, mode));
+                add_state(n, curr);
+                curr = add_child(curr, stalloc(EPSILON, NULL, mode));
+                add_state(n, curr);
+
+                mode = 1;
+
                 break;
 
             case ')': /* end of subexpression */
-                popsub();
+                add_child(curr, rstack->s);
+                prev = lstack->s;
+                curr = rstack->s;
+
+                pop(&lstack);
+                pop(&rstack);
                 break;
 
             case '|': /* alternation */
-                curr->c[0] = rstack->s; /* connect this branch to its endpoint */
-                localroot(); /* set prev equal to the local root for this alternation */
-                curr = prev; /* ready the root to receive children */
+                add_child(curr, rstack->s);
+                prev = lstack->s->child->s;
+                curr = add_child(lstack->s, stalloc(EPSILON, NULL, lstack->s->mode));
+                add_state(n, curr);
                 break;
 
-            case '+':
-                next = stalloc(EPSILON, NULL, curr, mode);
-                curr->c[0] = next;
+            case '+': /* one or more */
+
+                /* loop */
+                if (!epsilon(curr))
+                    next = add_child(curr, stalloc(EPSILON, curr, lstack->s->mode));
+                else next = add_child(curr, stalloc(EPSILON, prev->child->s, lstack->s->mode));
+
+                prev = curr;
                 curr = next;
+
+                add_state(n, curr);
+
                 break;
 
             case '*': /* kleene closure */
-                next = stalloc(EPSILON, NULL, curr, mode);
-                prev->c[0] = next;
-                curr->c[0] = next;
+                /* loop */
+                if (!epsilon(curr))
+                    next = add_child(curr, stalloc(EPSILON, curr, lstack->s->mode));
+                else next = add_child(curr, stalloc(EPSILON, prev->child->s, lstack->s->mode));
+
+                /* skip */
+
+                add_child(prev, next);
                 curr = next;
+
+                add_state(n, curr);
+
+                break;
+
+            case '?': /* zero or one */
+                /* skip */
+                next = add_child(prev, stalloc(EPSILON, NULL, lstack->s->mode));
+                curr = add_child(curr, next);
+                add_state(n, curr);
                 break;
 
             case '.': /* wild card */
-                addliteral(DOT);
+                prev = curr;
+                curr = add_child(curr, stalloc(DOT, NULL, lstack->s->mode));
+                add_state(n, curr);
                 break;
 
             default: /* literals */
-                if (brackets) {
-                    localroot(); /* set prev equal to a new root for the literal */
-                    next = stalloc(*c, rstack->s, NULL, mode); /* create a state for the literal */
-                    prev->c[0] = next; /* set the new state as the root's child */
-                    pushstates(prev); /* record prev */
-                    curr = next; /* make sure curr is prepared to continue the chain */
-                } else {
-                    addliteral(*c);
-                }
+                prev = curr;
+                curr = add_child(curr, stalloc(*c, NULL, lstack->s->mode));
+                add_state(n, curr);
                 break;
 
         } /* switch */
 
-        pushstates(curr);
         c++;
-            
+
     } /* while */
 
-    curr->c[0] = rstack->s;
-
+    add_child(curr, rstack->s);
     pop(&lstack);
     pop(&rstack);
+
+    assert(!lstack && !rstack);
+
+    frontier = push_result(n->start, 0, NULL, NULL);
+    n->match_empty = 0;
+    while (frontier) {
+        curr = frontier->s;
+        if (accepting(curr)) {
+            n->match_empty = 1;
+            while (pop_result(&frontier));
+        } else if (epsilon(curr)) {
+            lstack = curr->child;
+            while (lstack) {
+                append_result(lstack->s, 0, frontier, NULL, NULL);
+                lstack = lstack->next;
+            }
+        }
+        pop_result(&frontier);
+    }
+
+    puts("constructed");
 
     return n;
 }

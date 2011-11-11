@@ -2,7 +2,10 @@
  * nfa.h
  */
 
-#define N_KIDS 2
+#include <limits.h>
+
+#define PLUS 1
+#define MINUS -1
 
 typedef enum {
     DOTALL=1
@@ -20,25 +23,27 @@ typedef enum {
     RBRACKET
 } nfa_symbol;
 
-typedef struct _state {
-    int s, mode;
-    struct _state *c[N_KIDS];
-} state;
+typedef struct _state state;
 
 typedef struct _node {
     state *s;
     struct _node *next;
 } node;
 
+struct _state {
+    int s, mode;
+    node *child;
+};
+
 typedef struct _nfa {
     state *start, *accept;
     node *states;
-    int n;
+    int n, match_empty;
 } nfa;
 
 typedef struct _result_node {
     state *s;
-    int i;
+    unsigned int i;
     struct _result_node *parent, *next;
 } result_node;
 
@@ -55,14 +60,11 @@ typedef struct _group {
 typedef struct _match_object {
     char *str;
     group *groups;
-    unsigned int n;
+    int n;
 } match_object;
 
-/* allocate a state */
-state * stalloc(int, state *, state *, int);
-
 /* Search for a substring that the nfa accepts */
-int search(nfa *, char *, unsigned int,  match_object *, int);
+int search(state *, char *, unsigned int,  match_object *, int, int, int);
 
 /* check is state represents an epsilon transition */
 int epsilon(state *);
