@@ -2,80 +2,75 @@
  * nfa.h
  */
 
+#ifndef NFA_H_
+#define NFA_H_
+
 #include <limits.h>
 
 #define PLUS 1
 #define MINUS -1
+#define CARET 2
+#define CASH 3
 
 typedef enum {
     DOTALL=1
-} nfa_option;
+} NFA_option;
 
 typedef enum {
-    ACCEPT=CHAR_MAX+1,
-    CASH,
-    DOT,
-    CARET,
     EPSILON,
-    LPAREN,
+    LPAREN=CHAR_MAX+1,
     RPAREN,
-    LBRACKET,
-    RBRACKET
-} nfa_symbol;
+    LBRACK,
+    RBRACK,
+    NUM_SYMB
+} NFA_symbol;
 
-typedef struct _state state;
+typedef struct _State State;
 
-typedef struct _node {
-    state *s;
-    struct _node *next;
-} node;
+typedef struct _NFA {
+    State *start, 
+          *accept;
+    int empty; /* if matches empty */
+} NFA;
 
-struct _state {
-    int s, mode;
-    node *child;
+typedef struct _Node {
+    State *s;
+    struct _Node *next;
+} Node;
+
+struct _State {
+    int mode; /* if match or negation */
+    Node *trans[NUM_SYMB];
+    State *mate; /* matching state if a delimiter */
 };
 
-typedef struct _nfa {
-    state *start, *accept;
-    node *states;
-    int n, match_empty;
-} nfa;
-
-typedef struct _result_node {
-    state *s;
-    unsigned int i;
-    struct _result_node *parent, *next;
-} result_node;
-
-typedef struct _search_node {
-    result_node *n;
-    struct _search_node *next;
-} search_node;
-
-typedef struct _group {
+typedef struct _Group {
     unsigned int i[2];
-    struct _group *next;
-} group;
+    struct _Group *next;
+} Group;
 
-typedef struct _match_object {
+typedef struct _MatchObject {
     char *str;
-    group *groups;
-    int n;
-} match_object;
+    unsigned int n;
+    Group *groups;
+} MatchObject;
 
-/* Search for a substring that the nfa accepts */
-int search(state *, char *, unsigned int,  match_object *, int, int, int);
+State *state(int, State *);
 
-/* check is state represents an epsilon transition */
-int epsilon(state *);
+Node *node(State *, Node *);
 
-/* check if a state is accepting */
-int accepting(state *);
+Node *pop(Node *);
 
-/**
- * Consruct an nfa from a regular expression.
- * Precondition: the regular expression is legal.
- */
-nfa * construct_nfa(char *);
+Group *group(unsigned int, unsigned, Group *);
 
-void free_nfa(nfa *);
+MatchObject *matchObject(char *, unsigned, Group *);
+
+void add_group(MatchObject *, unsigned, unsigned);
+
+NFA *nfa(char *);
+
+State *add_child(State *, int, State *);
+
+unsigned search(State *, State *, char *, unsigned, unsigned, MatchObject *, int);
+
+#endif
