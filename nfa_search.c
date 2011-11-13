@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 #include <stdio.h>
 #include "nfa.h"
 
@@ -34,12 +35,11 @@ SNode *append(SNode *l, unsigned i, Node *n)
     return l;
 }
 
-SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish, int options)
+SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish)
 {
     SNode *startnode, *curr, *frontier, *sn, *submatch, *matches;
     unsigned begin, end, match;
     Node *n;
-    int c;
 
     matches = NULL;
     submatch = NULL;
@@ -48,13 +48,13 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
     for (begin = start; !match && begin < finish; ++begin) {
         for (end = finish; !match && end > begin; --end) {
 
-            frontier = startnode = snode(s, start, NULL);
+            frontier = startnode = snode(s, begin, NULL);
             while (matches) {
                 sn = matches;
                 matches = matches->next;
                 free(sn);
             }
-            matches = snode(s, start, NULL);
+            matches = snode(s, begin, NULL);
 
             while (frontier) {
 
@@ -71,30 +71,39 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
 
                     } else if (!match && curr->s != a) { 
 
+                        /* epsilon transitions */
                         append(curr, curr->i, curr->s->trans[EPSILON]);
 
+                        /* matching transitions */
                         frontier = append(frontier, curr->i+1, curr->s->trans[(int)str[curr->i]]);
 
+                        /* matching subexpressions */
                         if (curr->s->trans[LPAREN]) {
                             n = curr->s->trans[LPAREN];
-                            submatch = search_rec(n->s, n->s->mate, str, curr->i, end, options);
+                            submatch = search_rec(n->s, n->s->mate, str, curr->i, end);
 
-                            if (submatch) {
-                                sn = submatch;
-                                while (sn->next) sn = sn->next;
-                                n = node(sn->s, NULL); /* get the matching right paren */
-                                frontier = append(frontier, sn->i, n);
-                                free(n);
-
-                                while(submatch) {
-                                    n = node(submatch->s, NULL);
-                                    matches = append(matches, submatch->i, n);
+                            if (submatch && n->s->mode == PLUS) {
+                                    sn = submatch;
+                                    while (sn->next) sn = sn->next;
+                                    n = node(sn->s, NULL); /* get the matching right paren */
+                                    frontier = append(frontier, sn->i, n);
                                     free(n);
 
-                                    sn = submatch;
-                                    submatch = submatch->next;
-                                    free(sn);
-                                }
+                                    while(submatch) {
+                                        n = node(submatch->s, NULL);
+                                        matches = append(matches, submatch->i, n);
+                                        free(n);
+
+                                        sn = submatch;
+                                        submatch = submatch->next;
+                                        free(sn);
+                                    }
+                            } else if (!submatch && n->s->mode == MINUS) {
+                                unsigned i;
+                                n = node(n->s->mate, NULL);
+                                for (i = curr->i+1; i < end; ++i)
+                                    frontier = append(frontier, i, n);
+                                free(n);
                             }
                         }
                     }
@@ -121,10 +130,10 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
     return matches;
 }
 
-unsigned search(State *s, State *a, char *str, unsigned int start, unsigned int finish, MatchObject *m, int options) {
+unsigned search(State *s, State *a, char *str, MatchObject *m) {
     SNode *beg, *end, *match;
     
-    match = search_rec(s, a, str, start, finish, options);
+    match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1);
     if (match) {
         beg = match;
         while (beg) {

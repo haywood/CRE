@@ -23,9 +23,7 @@ int main(int argc, char **argv)
         m.groups = NULL;
         m.n = 0;
         printf("%s search %s = %d\n", argv[1], argv[2], 
-                search(d->start, d->accept, 
-                    argv[2], 0, argv[2][0] ? strlen(argv[2]): 1, 
-                    &m, DOTALL));
+                search(d->start, d->accept, argv[2], &m));
         printf("%d groups:\n", m.n);
         for (i = 0; i < m.n; ++i) {
             for (k = m.groups[i].i[0]; k < m.groups[i].i[1]; ++k)

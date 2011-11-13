@@ -71,6 +71,6 @@ NFA *nfa(char *);
 
 State *add_child(State *, int, State *);
 
-unsigned search(State *, State *, char *, unsigned, unsigned, MatchObject *, int);
+unsigned search(State *, State *, char *, MatchObject *);
 
 #endif

@@ -98,9 +98,9 @@ NFA * nfa(char *re)
 
     while (*c) {
 
-        if (*c == '~') { /* negation */
+        while (*c == '~') { /* negation */
 
-            mode = MINUS;
+            mode = - mode;
             c++;
         }
     
@@ -120,7 +120,7 @@ NFA * nfa(char *re)
                 curr = add_child(prev, *c, state(mode, NULL));
             } else {
                 curr = state(mode, NULL);
-                for (i = 0; i <= CHAR_MAX; ++i)
+                for (i = 1; i <= CHAR_MAX; ++i)
                     if (i != *c) add_child(prev, i, curr);
             }
 
@@ -133,7 +133,7 @@ NFA * nfa(char *re)
             }
             curr = state(PLUS, NULL);
             if (mode == MINUS) {
-                for (i = 0; i <= CHAR_MAX; ++i) {
+                for (i = 1; i <= CHAR_MAX; ++i) {
                     add_child(prev, i, curr);
                 }
                 mode = PLUS;
@@ -143,7 +143,7 @@ NFA * nfa(char *re)
                             prev->trans[(int)*++c] = NULL;
                             break;
                         case '.':
-                            for (i = 0; i <= CHAR_MAX; ++i)
+                            for (i = 1; i <= CHAR_MAX; ++i)
                                 if (!isspace(i)) prev->trans[i] = NULL;
                             break;
                         default:
@@ -158,7 +158,7 @@ NFA * nfa(char *re)
                             add_child(prev, *++c, curr);
                             break;
                         case '.':
-                            for (i = 0; i <= CHAR_MAX; ++i) {
+                            for (i = 1; i <= CHAR_MAX; ++i) {
                                 if (!isspace(i)) add_child(prev, i, curr);
                             }
                             break;
@@ -198,17 +198,18 @@ NFA * nfa(char *re)
                 add_child(curr, LPAREN, delim->s->trans[LPAREN]->s);
                 delim = pop(delim);
             } else {
-                for (i = 0; i <= CHAR_MAX; ++i)
+                for (i = 1; i <= CHAR_MAX; ++i)
                     curr->trans[i] = prev->trans[i];
             }
 
         } else if (*c == '*') {
 
             if (delim->next) {
+                prev = delim->s;
                 add_child(curr, LPAREN, delim->s->trans[LPAREN]->s);
                 delim = pop(delim);
             } else {
-                for (i = 0; i <= CHAR_MAX; ++i)
+                for (i = 1; i <= CHAR_MAX; ++i)
                     curr->trans[i] = prev->trans[i];
             }
 
@@ -231,11 +232,11 @@ NFA * nfa(char *re)
             prev = curr;
             curr = state(PLUS, NULL);
             if (mode == PLUS) {
-                for (i = 0; i <= CHAR_MAX; ++i) {
+                for (i = 1; i <= CHAR_MAX; ++i) {
                     if (!isspace(i)) add_child(prev, i, curr);
                 }
             } else {
-                for (i = 0; i <= CHAR_MAX; ++i) {
+                for (i = 1; i <= CHAR_MAX; ++i) {
                     if (isspace(i)) add_child(prev, i, curr);
                 }
             }
@@ -247,7 +248,7 @@ NFA * nfa(char *re)
             if (mode == PLUS) {
                 add_child(prev, *c, curr);
             } else if (mode == MINUS) {
-                for (i = 0; i <= CHAR_MAX; ++i) {
+                for (i = 1; i <= CHAR_MAX; ++i) {
                     if (i != *c) add_child(prev, i, curr);
                 }
             }
