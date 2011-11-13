@@ -80,7 +80,7 @@ State *add_child(State *s, int t, State *c)
     return c;
 }
 
-NFA * nfa(char *re)
+NFA * nfa(char *re, int options)
 {
     NFA *n = (NFA *)malloc(sizeof(NFA));
     State *curr, *prev, *next;
@@ -233,11 +233,11 @@ NFA * nfa(char *re)
             curr = state(PLUS, NULL);
             if (mode == PLUS) {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (!isspace(i)) add_child(prev, i, curr);
+                    if (!isspace(i) || (options & DOTALL)) add_child(prev, i, curr);
                 }
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isspace(i)) add_child(prev, i, curr);
+                    if (isspace(i) && !(options & DOTALL)) add_child(prev, i, curr);
                 }
             }
 
@@ -263,6 +263,14 @@ NFA * nfa(char *re)
 
     add_child(curr, EPSILON, delim->s->mate);
     delim = pop(delim);
+
+    delim = node(n->start, NULL);
+    while (delim->s->trans[EPSILON])
+        delim = node(delim->s->trans[EPSILON]->s, delim);
+    if (delim->s == n->accept)
+        n->empty = 1;
+    while (delim->next) delim = delim->next;
+    free(delim);
 
     puts("constructed");
 

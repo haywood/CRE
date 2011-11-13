@@ -67,7 +67,7 @@ MatchObject *matchObject(char *, unsigned, Group *);
 
 void add_group(MatchObject *, unsigned, unsigned);
 
-NFA *nfa(char *);
+NFA *nfa(char *, int);
 
 State *add_child(State *, int, State *);
 

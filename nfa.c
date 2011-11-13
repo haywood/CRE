@@ -18,14 +18,11 @@ int main(int argc, char **argv)
     NFA *d;
 
     if (argc > 2) {
-        d = nfa(argv[1]);
-        m.str = argv[2];
-        m.groups = NULL;
-        m.n = 0;
+        d = nfa(argv[1], 0);
         printf("%s search %s = %d\n", argv[1], argv[2], 
                 search(d->start, d->accept, argv[2], &m));
-        printf("%d groups:\n", m.n);
-        for (i = 0; i < m.n; ++i) {
+        printf("%d capture groups:\n", m.n);
+        for (i = 1; i <= m.n; ++i) {
             for (k = m.groups[i].i[0]; k < m.groups[i].i[1]; ++k)
                 putchar(m.str[k]);
             putchar('\n');

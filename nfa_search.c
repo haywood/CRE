@@ -75,7 +75,8 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                         append(curr, curr->i, curr->s->trans[EPSILON]);
 
                         /* matching transitions */
-                        frontier = append(frontier, curr->i+1, curr->s->trans[(int)str[curr->i]]);
+                        if (curr->i <= end) 
+                            frontier = append(frontier, curr->i+1, curr->s->trans[(int)str[curr->i]]);
 
                         /* matching subexpressions */
                         if (curr->s->trans[LPAREN]) {
@@ -134,8 +135,12 @@ unsigned search(State *s, State *a, char *str, MatchObject *m) {
     SNode *beg, *end, *match;
     
     match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1);
-    if (match) {
+    m->groups = NULL;
+    m->str = NULL;
+    m->n = 0;
+    if (m && match) {
         beg = match;
+        m->str = str;
         while (beg) {
             end = beg;
             while (end && end->s != beg->s->mate)
@@ -145,6 +150,7 @@ unsigned search(State *s, State *a, char *str, MatchObject *m) {
                 beg = beg->next;
             } while (beg && !beg->s->mate);
         }
+        m->n--;
         return 1;
     } else return 0;
 }
