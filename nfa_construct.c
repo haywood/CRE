@@ -104,15 +104,15 @@ NFA * nfa(char *re, int options)
             c++;
         }
     
-        if (*c == '^' && c == re) {
+        if (*c == '^' && c == re) { /* front anchor */
 
             n->start->mode = CARET;
 
-        } else if (*c == '$' && !*(c+1)) {
+        } else if (*c == '$' && !*(c+1)) { /* back anchor */
 
             n->accept->mode = CASH;
 
-        } else if (*c == '\\') {
+        } else if (*c == '\\') { /* escape */
 
             prev = curr;
             c++;
@@ -124,7 +124,7 @@ NFA * nfa(char *re, int options)
                     if (i != *c) add_child(prev, i, curr);
             }
 
-        } else if (*c == '[') {
+        } else if (*c == '[') { /* brackets */
 
             prev = curr;
             if (*(c+1) == '^') {
@@ -168,21 +168,21 @@ NFA * nfa(char *re, int options)
                     }
                 }
             }
-        } else if (*c == '(') {
+        } else if (*c == '(') { /* start subexpression */
 
             curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* create new level and connect it to current */
             delim = node(curr, delim); /* store the new level in delim */
             prev = curr = add_child(curr, LPAREN, state(mode, state(PLUS, NULL))); /* add lparen and its mate rparen */
             curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* entry point for alternation */
 
-        } else if (*c == ')') {
+        } else if (*c == ')') { /* end subexpression */
 
             prev = delim->s->trans[LPAREN]->s; /* get root of level */
             curr = add_child(curr, EPSILON, prev->mate); /* connect child to delim mate */
             if (*(c+1) != '+' && *(c+1) != '*' && *(c+1) != '?')
                 delim = pop(delim); /* pop current level */
 
-        } else if (*c == '|') {
+        } else if (*c == '|') { /* alternation */
 
             if (delim->next) {
                 prev = delim->s->trans[LPAREN]->s;
@@ -192,7 +192,7 @@ NFA * nfa(char *re, int options)
             add_child(curr, EPSILON, prev->mate);
             curr = add_child(prev, EPSILON, state(PLUS, NULL));
 
-        } else if (*c == '+') {
+        } else if (*c == '+') { /* one or more */
 
             if (delim->next) {
                 add_child(curr, LPAREN, delim->s->trans[LPAREN]->s);
@@ -202,7 +202,7 @@ NFA * nfa(char *re, int options)
                     curr->trans[i] = prev->trans[i];
             }
 
-        } else if (*c == '*') {
+        } else if (*c == '*') { /* zero or more */
 
             if (delim->next) {
                 prev = delim->s;
@@ -217,7 +217,7 @@ NFA * nfa(char *re, int options)
             add_child(prev, EPSILON, next);
             curr = add_child(curr, EPSILON, next);
 
-        } else if (*c == '?') {
+        } else if (*c == '?') { /* zero or one */
 
             if (delim->next) {
                 prev = delim->s;
@@ -227,7 +227,7 @@ NFA * nfa(char *re, int options)
             add_child(prev, EPSILON, next);
             curr = add_child(curr, EPSILON, next);
 
-        } else if (*c == '.') {
+        } else if (*c == '.') { /* wildcard */
 
             prev = curr;
             curr = state(PLUS, NULL);
@@ -241,7 +241,7 @@ NFA * nfa(char *re, int options)
                 }
             }
 
-        } else {
+        } else { /* literals */
 
             prev = curr;
             curr = state(PLUS, NULL);
