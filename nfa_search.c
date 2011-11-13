@@ -37,23 +37,17 @@ SNode *append(SNode *l, unsigned i, Node *n)
 
 SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish)
 {
-    SNode *startnode, *curr, *frontier, *sn, *submatch, *matches;
+    SNode *startnode, *curr, *frontier, *sn, *matches;
     unsigned begin, end, match;
     Node *n;
 
     matches = NULL;
-    submatch = NULL;
     match = 0;
 
     for (begin = start; !match && begin < finish; ++begin) {
         for (end = finish; !match && end > begin; --end) {
 
             frontier = startnode = snode(s, begin, NULL);
-            while (matches) {
-                sn = matches;
-                matches = matches->next;
-                free(sn);
-            }
             matches = snode(s, begin, NULL);
 
             while (frontier) {
@@ -78,35 +72,8 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                         if (curr->i <= end) 
                             frontier = append(frontier, curr->i+1, curr->s->trans[(int)str[curr->i]]);
 
-                        /* matching subexpressions */
-                        if (curr->s->trans[LPAREN]) {
-                            n = curr->s->trans[LPAREN];
-                            submatch = search_rec(n->s, n->s->mate, str, curr->i, end);
-
-                            if (submatch && n->s->mode == PLUS) {
-                                    sn = submatch;
-                                    while (sn->next) sn = sn->next;
-                                    n = node(sn->s, NULL); /* get the matching right paren */
-                                    frontier = append(frontier, sn->i, n);
-                                    free(n);
-
-                                    while(submatch) {
-                                        n = node(submatch->s, NULL);
-                                        matches = append(matches, submatch->i, n);
-                                        free(n);
-
-                                        sn = submatch;
-                                        submatch = submatch->next;
-                                        free(sn);
-                                    }
-                            } else if (!submatch && n->s->mode == MINUS) {
-                                unsigned i;
-                                n = node(n->s->mate, NULL);
-                                for (i = curr->i+1; i < end; ++i)
-                                    frontier = append(frontier, i, n);
-                                free(n);
-                            }
-                        }
+                        /* parentheticals */
+                        frontier = append(frontier, curr->i, curr->s->trans[LPAREN]);
                     }
                     sn = curr;
                     curr = curr->next;
@@ -138,6 +105,7 @@ unsigned search(State *s, State *a, char *str, MatchObject *m) {
     m->groups = NULL;
     m->str = NULL;
     m->n = 0;
+    if (match) return 1;
     if (m && match) {
         beg = match;
         m->str = str;
