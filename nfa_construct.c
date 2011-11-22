@@ -247,7 +247,7 @@ NFA * nfa(char *re, int options)
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
-                    if (prev->trans[i]->s == curr)
+                    if (prev->trans[i] && prev->trans[i]->s == curr)
                         curr->trans[i] = prev->trans[i];
             }
             prev = curr;
@@ -261,7 +261,7 @@ NFA * nfa(char *re, int options)
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
-                    if (prev->trans[i]->s == curr)
+                    if (prev->trans[i] && prev->trans[i]->s == curr)
                         curr->trans[i] = prev->trans[i];
             }
 

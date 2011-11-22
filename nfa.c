@@ -19,6 +19,7 @@ int main(int argc, char **argv)
     NFA *d;
 
     if (argc > 2) {
+        check_re(argv[1]);
         d = nfa(argv[1], 0);
         printf("%s search %s = %d\n", argv[1], argv[2], 
                 search(d->start, d->accept, argv[2], &m, d->matchstart, d->matchend));

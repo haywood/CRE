@@ -72,4 +72,6 @@ State *add_child(State *, int, State *);
 
 unsigned search(State *, State *, char *, MatchObject *, int, int);
 
+void check_re(char *);
+
 #endif
