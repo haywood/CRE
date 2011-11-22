@@ -9,8 +9,6 @@
 
 #define PLUS 1
 #define MINUS -1
-#define CARET 2
-#define CASH 3
 
 typedef enum {
     DOTALL=1
@@ -20,8 +18,7 @@ typedef enum {
     EPSILON,
     LPAREN=CHAR_MAX+1,
     RPAREN,
-    LBRACK,
-    RBRACK,
+    STATE_LIST,
     NUM_SYMB
 } NFA_symbol;
 
@@ -30,7 +27,9 @@ typedef struct _State State;
 typedef struct _NFA {
     State *start, 
           *accept;
-    int empty; /* if matches empty */
+    int empty, /* if matches empty */
+        matchstart, /* anchor at start */
+        matchend; /* anchor at end */
 } NFA;
 
 typedef struct _Node {
@@ -39,7 +38,7 @@ typedef struct _Node {
 } Node;
 
 struct _State {
-    int mode; /* if match or negation */
+    int mode; /* context */
     Node *trans[NUM_SYMB];
     State *mate; /* matching state if a delimiter */
 };
@@ -71,6 +70,6 @@ NFA *nfa(char *, int);
 
 State *add_child(State *, int, State *);
 
-unsigned search(State *, State *, char *, MatchObject *);
+unsigned search(State *, State *, char *, MatchObject *, int, int);
 
 #endif

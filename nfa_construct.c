@@ -80,6 +80,10 @@ State *add_child(State *s, int t, State *c)
     return c;
 }
 
+void add_state(NFA *nfa, State *s)
+{
+    nfa->start->trans[STATE_LIST] = node(s,nfa->start->trans[STATE_LIST]);
+}
 NFA * nfa(char *re, int options)
 {
     NFA *n = (NFA *)malloc(sizeof(NFA));
@@ -90,11 +94,14 @@ NFA * nfa(char *re, int options)
     int i;
 
     mode = PLUS;
-    n->accept = state(mode, NULL);
-    n->start = state(mode, n->accept);
+
+    n->accept = state(PLUS, NULL);
+    n->start = state(PLUS, n->accept);
+    n->matchstart = n->matchend = 0;
+
     delim = node(n->start, NULL);
     c = re;
-    prev = curr = add_child(n->start, EPSILON, state(mode, NULL));
+    prev = curr = add_child(n->start, EPSILON, state(PLUS, NULL));
 
     while (*c) {
 
@@ -106,20 +113,26 @@ NFA * nfa(char *re, int options)
     
         if (*c == '^' && c == re) { /* front anchor */
 
-            n->start->mode = CARET;
+            n->matchstart = 1;
+            c++;
 
-        } else if (*c == '$' && !*(c+1)) { /* back anchor */
+        } 
+        
+        if (*c == '$' && !*(c+1)) { /* back anchor */
 
-            n->accept->mode = CASH;
+            n->matchend = 1;
+            c++;
 
-        } else if (*c == '\\') { /* escape */
+        } 
+        
+        if (*c == '\\') { /* escape */
 
             prev = curr;
             c++;
             if (mode == PLUS) {
-                curr = add_child(prev, *c, state(mode, NULL));
+                curr = add_child(prev, *c, state(PLUS, NULL));
             } else {
-                curr = state(mode, NULL);
+                curr = state(PLUS, NULL);
                 for (i = 1; i <= CHAR_MAX; ++i)
                     if (i != *c) add_child(prev, i, curr);
             }
@@ -170,10 +183,14 @@ NFA * nfa(char *re, int options)
             }
         } else if (*c == '(') { /* start subexpression */
 
-            curr = add_child(curr, EPSILON, state(mode, NULL)); /* create new level and connect it to current */
+            mode = mode*delim->s->mode;
+            curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* create new level and connect it to current */
             delim = node(curr, delim); /* store the new level in delim */
-            prev = curr = add_child(curr, LPAREN, state(mode, state(PLUS, NULL))); /* add lparen and its mate rparen */
+            prev = curr = add_child(curr, LPAREN, state(mode, state(mode, NULL))); /* add lparen and its mate rparen */
+            curr->mate->mate = curr;
             curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* entry point for alternation */
+            add_state(n, delim->s);
+            add_state(n, delim->s->trans[LPAREN]->s);
 
         } else if (*c == ')') { /* end subexpression */
 
@@ -245,7 +262,6 @@ NFA * nfa(char *re, int options)
 
             prev = curr;
             curr = state(PLUS, NULL);
-            mode = mode*delim->s->mode;
             if (mode == PLUS) {
                 add_child(prev, *c, curr);
             } else if (mode == MINUS) {
@@ -257,21 +273,19 @@ NFA * nfa(char *re, int options)
         }
 
         if (mode == MINUS) mode = PLUS;
-
+        add_state(n, curr);
         c++;
 
     } /* while */
 
-    add_child(curr, EPSILON, delim->s->mate);
-    delim = pop(delim);
-
-    delim = node(n->start, NULL);
+    add_child(curr, EPSILON, n->accept);
+    n->empty=0;
     while (delim->s->trans[EPSILON])
         delim = node(delim->s->trans[EPSILON]->s, delim);
     if (delim->s == n->accept)
         n->empty = 1;
     while (delim->next) delim = delim->next;
-    free(delim);
+    delim = pop(delim);
 
     puts("constructed");
 

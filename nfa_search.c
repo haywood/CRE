@@ -7,19 +7,21 @@
 typedef struct _SNode {
     State *s;
     unsigned i;
-    struct _SNode *next;
+    struct _SNode *parent,
+                  *next;
 } SNode;
 
-SNode *snode(State *s, unsigned i, SNode *next)
+SNode *snode(State *s, unsigned i, SNode *parent, SNode *next)
 {
     SNode *n = (SNode *)malloc(sizeof(SNode));
     n->s = s;
     n->i = i;
+    n->parent = parent;
     n->next = next;
     return n;
 }
 
-SNode *append(SNode *l, unsigned i, Node *n) 
+SNode *append(SNode *l, unsigned i, SNode *parent, Node *n) 
 {
     SNode *tail = l;
     while (tail && tail->next) {
@@ -27,96 +29,147 @@ SNode *append(SNode *l, unsigned i, Node *n)
     }
     while (n) {
         if (tail) {
-            tail = tail->next = snode(n->s, i, NULL);
+            tail = tail->next = snode(n->s, i, parent, NULL);
         }
-        else l = tail = snode(n->s, i, NULL);
+        else l = tail = snode(n->s, i, parent, NULL);
         n = n->next;
     }
     return l;
 }
 
-SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish)
+SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish, int matchstart, int matchend)
 {
-    SNode *startnode, *curr, *frontier, *sn, *matches;
-    unsigned begin, end, match;
+    SNode *startnode, *curr, *frontier, *sn, *pn, *matches, *lists;
+    unsigned begin, end, alive;
     Node *n;
 
-    matches = NULL;
-    match = 0;
+    alive = 1;
 
-    for (begin = start; !match && begin < finish; ++begin) {
-        for (end = finish; !match && end > begin; --end) {
+    for (begin = start; alive && begin < finish; ++begin) {
+        for (end = finish; alive && end > begin; --end) {
 
-            frontier = startnode = snode(s, begin, NULL);
-            matches = snode(s, begin, NULL);
+            frontier = startnode = snode(s, begin, NULL, NULL);
+            matches = NULL;
+            lists = NULL;
 
             while (frontier) {
+
+                sn = lists; /* save the old frontier */
+                if (sn) {
+                    while (sn->next) 
+                        sn = sn->next;
+                    sn->next = frontier;
+                } else lists = frontier;
 
                 curr = frontier;
                 frontier = NULL;
 
                 while (curr) {
-                    if (!match && curr->s == a && curr->i == end) {
+                    if (curr->s == a && curr->i == end) {
 
                         n = node(a, NULL);
-                        matches = append(matches, curr->i, n);
+                        sn=matches=snode(curr->s, end, NULL, matches);
+                        pn=curr->parent;
+                        while (pn) {
+                            sn=sn->parent=snode(pn->s, pn->i, NULL, sn);
+                            pn=pn->parent;
+                        }
                         free(n);
-                        match = 1;
+                        alive = 0;
 
-                    } else if (!match && curr->s != a) { 
+                    } else if (alive && curr->s != a) { 
 
                         /* epsilon transitions */
-                        append(curr, curr->i, curr->s->trans[EPSILON]);
+                        append(curr, curr->i, curr, curr->s->trans[EPSILON]);
 
                         /* matching transitions */
                         if (curr->i <= end) 
-                            frontier = append(frontier, curr->i+1, curr->s->trans[(int)str[curr->i]]);
+                            frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
 
                         /* parentheticals */
-                        frontier = append(frontier, curr->i, curr->s->trans[LPAREN]);
+                        if (curr->s->trans[LPAREN]) {
+                            if(curr->s->trans[LPAREN]->s->mode == PLUS)
+                                frontier = append(frontier, curr->i, curr, curr->s->trans[LPAREN]);
+                            else {
+                                sn = search_rec(curr->s->trans[LPAREN]->s, curr->s->trans[LPAREN]->s->mate, str, begin, end, 0, 0);
+                                if (sn) {
+                                    while ((curr=frontier)) {
+                                        frontier = frontier->next;
+                                        free(curr);
+                                    }
+                                    while ((curr=sn)) {
+                                        sn = sn->next;
+                                        while ((pn=curr)) {
+                                            curr=curr->parent;
+                                            free(pn);
+                                        }
+                                    }
+                                    alive = 0;
+                                    break;
+                                } else {
+                                    n = node(curr->s->trans[LPAREN]->s->mate, NULL);
+                                    frontier = append(frontier, curr->i, curr, n);
+                                    free(n);
+                                }
+                            }
+                        }
                     }
-                    sn = curr;
                     curr = curr->next;
-                    free(sn);
                 }
             }
 
-            if (a->mode == CASH) break;
+            while ((curr=lists)) {
+                lists=lists->next;
+                free(curr);
+            }
+
+            if (matchend) break;
         }
 
-        if (s->mode == CARET) break;
-    }
-
-    if (!match) {
-        while (matches) {
-            sn = matches;
-            matches = matches->next;
-            free(sn);
-        }
+        if (matchstart) break;
     }
 
     return matches;
 }
 
-unsigned search(State *s, State *a, char *str, MatchObject *m) {
-    SNode *beg, *end, *match;
+unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, int matchend) {
+    SNode *beg, *end, *match, *sn;
     
-    match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1);
-    m->groups = NULL;
-    m->str = NULL;
-    m->n = 0;
-    if (match) return 1;
-    if (m && match) {
-        beg = match;
-        m->str = str;
-        while (beg) {
-            end = beg;
-            while (end && end->s != beg->s->mate)
+    match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1, matchstart, matchend);
+    if (m) {
+        m->groups = NULL;
+        m->str = NULL;
+        m->n = 0;
+    }
+    if (match) {
+        if (match->next) {
+            end = match->next;
+            while ((beg=end)) {
                 end = end->next;
-            add_group(m, beg->i, end->i);
-            do {
-                beg = beg->next;
-            } while (beg && !beg->s->mate);
+                while ((sn=beg)) {
+                    beg = beg->parent;
+                    free(sn);
+                }
+            }
+        }
+        if (m) {
+            m->str = str;
+            beg = match;
+            while (beg->s != s) beg = beg->parent;
+            add_group(m, beg->i, match->i);
+            while (beg->s != a) {
+                if (beg->s->trans[LPAREN] && beg->next->s == beg->s->trans[LPAREN]->s) {
+                    beg = beg->next;
+                    end = beg->next;
+                    while (end && end->s != beg->s->mate)
+                        end = end->next;
+                    add_group(m, beg->i, end->i);
+                }
+                sn=beg;
+                beg=beg->next;
+                beg->parent=NULL;
+                free(sn);
+            }
         }
         m->n--;
         return 1;
