@@ -64,8 +64,8 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                 curr = frontier;
                 frontier = NULL;
 
-                while (curr) {
-                    if (curr->s == a && curr->i == end) {
+                for (; alive && curr; curr = curr->next) {
+                    if (alive && curr->s == a && curr->i == end) {
 
                         n = node(a, NULL);
                         sn=matches=snode(curr->s, end, NULL, matches);
@@ -114,7 +114,6 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                             }
                         }
                     }
-                    curr = curr->next;
                 }
             }
 
@@ -133,6 +132,7 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
 }
 
 unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, int matchend) {
+
     SNode *beg, *end, *match, *sn;
     
     match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1, matchstart, matchend);
@@ -142,7 +142,7 @@ unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, i
         m->n = 0;
     }
     if (match) {
-        if (match->next) {
+        if (match->next) { /* this should never happen, but if somehow it does... */
             end = match->next;
             while ((beg=end)) {
                 end = end->next;
@@ -170,8 +170,8 @@ unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, i
                 beg->parent=NULL;
                 free(sn);
             }
+            m->n--;
         }
-        m->n--;
         return 1;
     } else return 0;
 }

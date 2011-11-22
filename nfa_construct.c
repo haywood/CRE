@@ -84,6 +84,32 @@ void add_state(NFA *nfa, State *s)
 {
     nfa->start->trans[STATE_LIST] = node(s,nfa->start->trans[STATE_LIST]);
 }
+
+int isCharClass(char c)
+{
+    return c == 'w';
+}
+
+void doCharClass(State *prev, State *curr, char c, int mode)
+{
+    int i;
+    switch (c) {
+        case 'w':
+            if (mode == PLUS) {
+                for (i = 1; i <= CHAR_MAX; ++i) {
+                    if (isalpha(i)) add_child(prev, i, curr);
+                    else prev->trans[i] = NULL;
+                }
+            } else {
+                for (i = 1; i <= CHAR_MAX; ++i) {
+                    if (isalpha(i)) prev->trans[i] = NULL;
+                    else add_child(prev, i, curr);
+                }
+            }
+            break;
+    }
+}
+
 NFA * nfa(char *re, int options)
 {
     NFA *n = (NFA *)malloc(sizeof(NFA));
@@ -121,20 +147,24 @@ NFA * nfa(char *re, int options)
         if (*c == '$' && !*(c+1)) { /* back anchor */
 
             n->matchend = 1;
-            c++;
+            prev = curr;
+            curr = add_child(prev, EPSILON, state(PLUS, NULL));
 
-        } 
-        
-        if (*c == '\\') { /* escape */
+        } else if (*c == '\\') { /* escape */
 
             prev = curr;
+            curr = state(PLUS, NULL);
             c++;
-            if (mode == PLUS) {
-                curr = add_child(prev, *c, state(PLUS, NULL));
+            if (isCharClass(*c)) {
+                if (isupper(*c)) mode=-mode;
+                doCharClass(prev, curr, tolower(*c), mode);
             } else {
-                curr = state(PLUS, NULL);
-                for (i = 1; i <= CHAR_MAX; ++i)
-                    if (i != *c) add_child(prev, i, curr);
+                if (mode == PLUS) {
+                    add_child(prev, *c, curr);
+                } else {
+                    for (i = 1; i <= CHAR_MAX; ++i)
+                        if (i != *c) add_child(prev, i, curr);
+                }
             }
 
         } else if (*c == '[') { /* brackets */
@@ -216,8 +246,11 @@ NFA * nfa(char *re, int options)
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
-                    curr->trans[i] = prev->trans[i];
+                    if (prev->trans[i]->s == curr)
+                        curr->trans[i] = prev->trans[i];
             }
+            prev = curr;
+            curr = add_child(curr, EPSILON, state(PLUS, NULL));
 
         } else if (*c == '*') { /* zero or more */
 
@@ -227,7 +260,8 @@ NFA * nfa(char *re, int options)
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
-                    curr->trans[i] = prev->trans[i];
+                    if (prev->trans[i]->s == curr)
+                        curr->trans[i] = prev->trans[i];
             }
 
             next = state(PLUS, NULL);
