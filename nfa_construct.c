@@ -87,6 +87,7 @@ void add_state(NFA *nfa, State *s)
 
 int isCharClass(char c)
 {
+    c = tolower(c);
     return c == 'w';
 }
 
@@ -97,12 +98,12 @@ void doCharClass(State *prev, State *curr, char c, int mode)
         case 'w':
             if (mode == PLUS) {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isalpha(i)) add_child(prev, i, curr);
+                    if (isalnum(i)) add_child(prev, i, curr);
                     else prev->trans[i] = NULL;
                 }
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isalpha(i)) prev->trans[i] = NULL;
+                    if (isalnum(i)) prev->trans[i] = NULL;
                     else add_child(prev, i, curr);
                 }
             }
