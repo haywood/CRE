@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -115,7 +116,7 @@ NFA * nfa(char *re, int options)
 {
     NFA *n = (NFA *)malloc(sizeof(NFA));
     State *curr, *prev, *next;
-    Node *delim;
+    Node *delim, *p, *q, *r;
     int mode;
     char *c;
     int i;
@@ -128,7 +129,9 @@ NFA * nfa(char *re, int options)
 
     delim = node(n->start, NULL);
     c = re;
-    prev = curr = add_child(n->start, EPSILON, state(PLUS, NULL));
+    curr = add_child(n->start, EPSILON, state(PLUS, NULL));
+    add_state(n, curr);
+    prev = n->start;
 
     while (*c) {
 
@@ -217,15 +220,14 @@ NFA * nfa(char *re, int options)
             mode = mode*delim->s->mode;
             curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* create new level and connect it to current */
             delim = node(curr, delim); /* store the new level in delim */
-            prev = curr = add_child(curr, LPAREN, state(mode, state(mode, NULL))); /* add lparen and its mate rparen */
-            curr->mate->mate = curr;
+            prev = curr = add_child(curr, EPSILON, state(mode, state(mode, NULL))); /* add lparen and its mate rparen */
             curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* entry point for alternation */
             add_state(n, delim->s);
-            add_state(n, delim->s->trans[LPAREN]->s);
+            add_state(n, delim->s->trans[EPSILON]->s);
 
         } else if (*c == ')') { /* end subexpression */
 
-            prev = delim->s->trans[LPAREN]->s; /* get root of level */
+            prev = delim->s->trans[EPSILON]->s; /* get root of level */
             curr = add_child(curr, EPSILON, prev->mate); /* connect child to delim mate */
             if (*(c+1) != '+' && *(c+1) != '*' && *(c+1) != '?')
                 delim = pop(delim); /* pop current level */
@@ -233,7 +235,7 @@ NFA * nfa(char *re, int options)
         } else if (*c == '|') { /* alternation */
 
             if (delim->next) {
-                prev = delim->s->trans[LPAREN]->s;
+                prev = delim->s->trans[EPSILON]->s;
             } else {
                 prev = delim->s;
             }
@@ -243,7 +245,7 @@ NFA * nfa(char *re, int options)
         } else if (*c == '+') { /* one or more */
 
             if (*(c-1) == ')') {
-                add_child(curr, LPAREN, delim->s->trans[LPAREN]->s);
+                add_child(curr, EPSILON, delim->s->trans[EPSILON]->s);
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
@@ -257,7 +259,7 @@ NFA * nfa(char *re, int options)
 
             if (*(c-1) == ')') {
                 prev = delim->s;
-                add_child(curr, LPAREN, delim->s->trans[LPAREN]->s);
+                add_child(curr, EPSILON, delim->s->trans[EPSILON]->s);
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
@@ -315,12 +317,18 @@ NFA * nfa(char *re, int options)
 
     add_child(curr, EPSILON, n->accept);
     n->empty=0;
-    while (delim->s->trans[EPSILON])
-        delim = node(delim->s->trans[EPSILON]->s, delim);
-    if (delim->s == n->accept)
-        n->empty = 1;
-    while (delim->next) delim = delim->next;
-    delim = pop(delim);
+    r = p = delim;
+    assert(p->s == n->start);
+    while (p && !n->empty) {
+        q=p->s->trans[EPSILON];
+        while (q && !n->empty) {
+            r = r->next = node(q->s, NULL);
+            q = q->next;
+            if (r->s == n->accept) n->empty = 1;
+        }
+        p=p->next;
+    }
+    while (delim) delim = pop(delim);
 
     puts("constructed");
 

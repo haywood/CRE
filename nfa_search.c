@@ -45,8 +45,8 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
 
     alive = 1;
 
-    for (begin = start; alive && begin < finish; ++begin) {
-        for (end = finish; alive && end > begin; --end) {
+    for (begin = start; alive && begin <= finish; ++begin) {
+        for (end = finish; alive && end >= begin; --end) {
 
             frontier = startnode = snode(s, begin, NULL, NULL);
             matches = NULL;
@@ -77,45 +77,27 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                         free(n);
                         alive = 0;
 
+                    } else if (alive && curr->s != s && curr->s->mate && curr->s->mode == MINUS) {
+                        
+                        /* handle a negated parenthetical */
+                        
+                        sn = search_rec(curr->s, curr->s->mate, str, begin, end, 0, 0);
+                        if (!sn) {
+                            append(curr, curr->i, curr, curr->s->trans[EPSILON]);
+                            if (curr->i <= end) frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
+                        }
+                        
                     } else if (alive && curr->s != a) { 
 
                         /* epsilon transitions */
                         append(curr, curr->i, curr, curr->s->trans[EPSILON]);
 
                         /* matching transitions */
-                        if (curr->i <= end) 
-                            frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
+                        if (curr->i <= end) frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
 
-                        /* parentheticals */
-                        if (curr->s->trans[LPAREN]) {
-                            if(curr->s->trans[LPAREN]->s->mode == PLUS)
-                                frontier = append(frontier, curr->i, curr, curr->s->trans[LPAREN]);
-                            else {
-                                sn = search_rec(curr->s->trans[LPAREN]->s, curr->s->trans[LPAREN]->s->mate, str, begin, end, 0, 0);
-                                if (sn) {
-                                    while ((curr=frontier)) {
-                                        frontier = frontier->next;
-                                        free(curr);
-                                    }
-                                    while ((curr=sn)) {
-                                        sn = sn->next;
-                                        while ((pn=curr)) {
-                                            curr=curr->parent;
-                                            free(pn);
-                                        }
-                                    }
-                                    alive = 0;
-                                    break;
-                                } else {
-                                    n = node(curr->s->trans[LPAREN]->s->mate, NULL);
-                                    frontier = append(frontier, curr->i, curr, n);
-                                    free(n);
-                                }
-                            }
-                        }
                     }
-                }
-            }
+                } /* curr loop */
+            } /* while frontier */
 
             while ((curr=lists)) {
                 lists=lists->next;
@@ -135,13 +117,14 @@ unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, i
 
     SNode *beg, *end, *match, *sn;
     
-    match = search_rec(s, a, str, 0, str[0] ? strlen(str) : 1, matchstart, matchend);
+    match = search_rec(s, a, str, 0, strlen(str), matchstart, matchend);
     if (m) {
         m->groups = NULL;
         m->str = NULL;
         m->n = 0;
     }
     if (match) {
+        puts("matched");
         if (match->next) { /* this should never happen, but if somehow it does... */
             end = match->next;
             while ((beg=end)) {
@@ -153,13 +136,12 @@ unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, i
             }
         }
         if (m) {
+            puts("calculating groups");
             m->str = str;
             beg = match;
             while (beg->s != s) beg = beg->parent;
-            add_group(m, beg->i, match->i);
             while (beg->s != a) {
-                if (beg->s->trans[LPAREN] && beg->next->s == beg->s->trans[LPAREN]->s) {
-                    beg = beg->next;
+                if (beg->s->mate) {
                     end = beg->next;
                     while (end && end->s != beg->s->mate)
                         end = end->next;

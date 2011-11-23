@@ -16,9 +16,7 @@ typedef enum {
 
 typedef enum {
     EPSILON,
-    LPAREN=CHAR_MAX+1,
-    RPAREN,
-    STATE_LIST,
+    STATE_LIST=CHAR_MAX+1,
     NUM_SYMB
 } NFA_symbol;
 
