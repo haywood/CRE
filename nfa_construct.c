@@ -89,26 +89,18 @@ void add_state(NFA *nfa, State *s)
 int isCharClass(char c)
 {
     c = tolower(c);
-    return c == 'w';
+    return c == 'w' || c == 'd';
 }
 
-void doCharClass(State *prev, State *curr, char c, int mode)
+int isCharClassMember(char c, char class, int mode)
 {
-    int i;
-    switch (c) {
+    switch (tolower(class)) {
         case 'w':
-            if (mode == PLUS) {
-                for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isalnum(i)) add_child(prev, i, curr);
-                    else prev->trans[i] = NULL;
-                }
-            } else {
-                for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isalnum(i)) prev->trans[i] = NULL;
-                    else add_child(prev, i, curr);
-                }
-            }
-            break;
+            return mode == PLUS ? isalnum(c) : !isalnum(c);
+        case 'd':
+            return mode == PLUS ? isdigit(c) : !isdigit(c);
+        default:
+            return 0;
     }
 }
 
@@ -160,8 +152,10 @@ NFA * nfa(char *re, int options)
             curr = state(PLUS, NULL);
             c++;
             if (isCharClass(*c)) {
-                if (isupper(*c)) mode=-mode;
-                doCharClass(prev, curr, tolower(*c), mode);
+                for (i=1; i <= CHAR_MAX; ++i) {
+                    if (isCharClassMember(i, *c, islower(*c) ? mode : -mode))
+                        add_child(prev, i, curr);
+                }
             } else {
                 if (mode == PLUS) {
                     add_child(prev, *c, curr);
@@ -174,20 +168,49 @@ NFA * nfa(char *re, int options)
         } else if (*c == '[') { /* brackets */
 
             prev = curr;
+            curr = state(PLUS, NULL);
             if (*(c+1) == '^') {
-                mode = - mode;
+                mode = -mode;
                 c++;
             }
-            curr = state(PLUS, NULL);
-            if (mode == MINUS) {
-                for (i = 1; i <= CHAR_MAX; ++i) {
-                    add_child(prev, i, curr);
-                }
-                mode = PLUS;
+
+            if (mode == PLUS) {
                 while (*++c != ']') {
                     switch (*c) {
                         case '\\':
-                            prev->trans[(int)*++c] = NULL;
+                            c++;
+                            if (isCharClass(*c)) {
+                                for (i=1; i <= CHAR_MAX; ++i) {
+                                    if (isCharClassMember(i, *c, islower(*c) ? mode : -mode)) {
+                                        add_child(prev, i, curr);
+                                    }
+                                }
+                            } else add_child(prev, (int)*c, curr);
+                            break;
+                        case '.':
+                            for (i = 1; i <= CHAR_MAX; ++i)
+                                if (!isspace(i)) add_child(prev, i, curr);
+                            break;
+                        default:
+                            add_child(prev, (int)*c, curr);
+                            break;
+                    }
+                }
+            } else {
+                for (i = 1; i <= CHAR_MAX; ++i) {
+                    add_child(prev, i, curr);
+                }
+                while (*++c != ']') {
+                    switch (*c) {
+                        case '\\':
+                            c++;
+                            if (isCharClass(*c)) {
+                                for (i=1; i <= CHAR_MAX; ++i) {
+                                    if (isCharClassMember(i, *c, islower(*c) ? -mode : mode)) { /* switch sign on mode for isCharClass Member */
+                                        prev->trans[i] = NULL;
+                                    }
+                                }
+                            } else prev->trans[(int)*c] = NULL;
                             break;
                         case '.':
                             for (i = 1; i <= CHAR_MAX; ++i)
@@ -195,22 +218,6 @@ NFA * nfa(char *re, int options)
                             break;
                         default:
                             prev->trans[(int)*c] = NULL;
-                            break;
-                    }
-                }
-            } else {
-                while (*++c != ']') {
-                    switch (*c) {
-                        case '\\':
-                            add_child(prev, *++c, curr);
-                            break;
-                        case '.':
-                            for (i = 1; i <= CHAR_MAX; ++i) {
-                                if (!isspace(i)) add_child(prev, i, curr);
-                            }
-                            break;
-                        default:
-                            add_child(prev, *c, curr);
                             break;
                     }
                 }

@@ -40,7 +40,7 @@ SNode *append(SNode *l, unsigned i, SNode *parent, Node *n)
 SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish, int matchstart, int matchend)
 {
     SNode *startnode, *curr, *frontier, *sn, *pn, *matches, *lists;
-    unsigned begin, end, alive;
+    int begin, end, alive;
     Node *n;
 
     alive = 1;
@@ -93,7 +93,7 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                         append(curr, curr->i, curr, curr->s->trans[EPSILON]);
 
                         /* matching transitions */
-                        if (curr->i <= end) frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
+                        if (curr->i < end) frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
 
                     }
                 } /* curr loop */
