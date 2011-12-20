@@ -3,11 +3,14 @@
 
 #include "nfa.h"
 
-void addGroup(MatchObject *m, unsigned b, unsigned e)
+void addGroup(MatchObject *m, int b, int e)
 {
-    unsigned i = m->n, swapped;
+    int i, swapped;
     Group g[2];
 
+    if (!m) return;
+
+    i=m->n;
     m->groups = (Group *)realloc(m->groups, ++m->n*sizeof(Group));
     m->groups[m->n-1].i[0] = b;
     m->groups[m->n-1].i[1] = e;
@@ -26,7 +29,7 @@ void addGroup(MatchObject *m, unsigned b, unsigned e)
     } while (swapped);
 }
 
-Group *group(unsigned int b, unsigned int e)
+Group *group(int b, int e)
 {
     Group *g = (Group *)malloc(sizeof(Group));
     g->i[0] = b;
@@ -34,7 +37,7 @@ Group *group(unsigned int b, unsigned int e)
     return g;
 }
 
-MatchObject *matchObject(const char *str, unsigned n, Group *g)
+MatchObject *matchObject(const char *str, int n, Group *g)
 {
     MatchObject *m = (MatchObject *)malloc(sizeof(MatchObject));
     m->groups = g;

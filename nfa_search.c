@@ -116,16 +116,11 @@ SNode *search_rec(State *s, State *a, const char *str, int start, int finish, in
     return matches;
 }
 
-unsigned search(State *s, State *a, const char *str, MatchObject *m, int flags) {
+int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
 
     SNode *beg, *end, *match, *sn;
     
     match = search_rec(s, a, str, 0, strlen(str), flags);
-    if (m) {
-        m->groups = NULL;
-        m->str = NULL;
-        m->n = 0;
-    }
     if (match) {
         puts("matched");
         if (match->next) { /* this should never happen, but if somehow it does... */
@@ -140,6 +135,9 @@ unsigned search(State *s, State *a, const char *str, MatchObject *m, int flags) 
         }
         if (m) {
             puts("calculating groups");
+            m->groups = NULL;
+            m->str = NULL;
+            m->n = 0;
             m->str = str;
             beg = match;
             while (beg->s != s) beg = beg->parent;

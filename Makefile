@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g3 -O0 -Wall -Wextra -pedantic
-OBJ=nfa.o buildNFA.o nfa_search.o nfa_syntax.o MatchObject.o
+OBJ=nfa.o buildNFA.o nfa_search.o MatchObject.o
 
 all: nfa
 
@@ -14,9 +14,6 @@ buildNFA.o: buildNFA.c nfa.h
 	$(CC) -c $< $(CFLAGS)
 
 nfa_search.o: nfa_search.c nfa.h
-	$(CC) -c $< $(CFLAGS)
-
-nfa_syntax.o: nfa_syntax.c nfa.h
 	$(CC) -c $< $(CFLAGS)
 
 MatchObject.o: MatchObject.c nfa.h

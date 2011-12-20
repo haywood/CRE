@@ -14,8 +14,7 @@
 int main(int argc, char **argv)
 {
     MatchObject m;
-    unsigned i, k;
-    int matched;
+    int matched, i, k;
     char *str;
     RE *re;
 
@@ -35,7 +34,7 @@ int main(int argc, char **argv)
             }
         }
         free(m.groups);
-        rereplace(re, &str, "Hello World!", 0);
+        rereplace(re, &str, ":)", 1);
         printf("%s\n", str);
         freere(re);
     }

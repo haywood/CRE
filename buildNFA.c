@@ -4,6 +4,8 @@
 
 #include "nfa.h"
 
+int legalChar(int c) { return isgraph(c) || isspace(c); }
+
 State *addChild(State *s, int t, State *c)
 {
     if (!s || !c) return NULL;
@@ -59,7 +61,7 @@ void doLiteral(int literal, int mode, State *prnt, State *child)
     if (mode == PLUS) addChild(prnt, literal, child);
     else
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-            if (reChar != literal) addChild(prnt, reChar, child);
+            if (legalChar(reChar) && reChar != literal) addChild(prnt, reChar, child);
 }
 
 void doWildcard(int mode, State *prnt, State *child, int dotAll)
@@ -67,10 +69,10 @@ void doWildcard(int mode, State *prnt, State *child, int dotAll)
     int reChar;
     if (mode == PLUS) {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-            if (!isspace(reChar) || dotAll) addChild(prnt, reChar, child);
+            if (legalChar(reChar) && (!isspace(reChar) || dotAll)) addChild(prnt, reChar, child);
     } else {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-            if (isspace(reChar) && !dotAll) addChild(prnt, reChar, child);
+            if (legalChar(reChar) && isspace(reChar) && !dotAll) addChild(prnt, reChar, child);
     }
 }
 
@@ -79,7 +81,7 @@ const char *doBrackets(const char *currChar, int mode, State *prnt, State *child
     int reChar;
     if (mode == MINUS) {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-            addChild(prnt, reChar, child);
+            if (legalChar(reChar)) addChild(prnt, reChar, child);
     }
 
     while (*currChar != ']') {
@@ -94,12 +96,12 @@ const char *doBrackets(const char *currChar, int mode, State *prnt, State *child
                 }
             } else if (mode == PLUS) addChild(prnt, *currChar, child); /* escaped literal in plus mode */
             else prnt->trans[reChar]=popNode(prnt->trans[reChar]); /* escaped literal in minus mode */
-        } else if (*currChar == '.') { /* wildcard */
+        } else if (*currChar == WILDCARD) { /* wildcard */
             if (mode == PLUS) {
                 doWildcard(PLUS, prnt, child, dotAll);
             } else {
                 for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-                    if (!isspace(reChar) || dotAll)
+                    if (legalChar(reChar) && (!isspace(reChar) || dotAll))
                         prnt->trans[reChar]=popNode(prnt->trans[reChar]);
             }
         } else { /* literal */
@@ -121,7 +123,7 @@ NFA *buildNFA(const char *re, int flags)
     State *prev, *curr, *next, *start, *accept;
     Node *subExprStack;
     const char *currChar;
-    int stateMode;
+    int stateMode, dotAll;
     NFA *newNFA;
 
     /* malloc accepting and start states */
@@ -137,13 +139,15 @@ NFA *buildNFA(const char *re, int flags)
     /* add top level of NFA to sub-expression stack */
     subExprStack=node(start, NULL);
 
-    /* initialize curr and prev for the main loop and add it to the NFA */
+    /* initialize curr and prev for the main loop and add curr to the NFA */
     curr=state(PLUS, NULL);
     addChild(start, EPSILON, curr);
     addState(newNFA, curr);
     prev=start;
-    currChar=re;
-    stateMode=PLUS;
+
+    dotAll=flags & DOTALL; /* get DOTALL flag */
+    stateMode=PLUS; /* initialize mode */
+    currChar=re; /* initialize current character */
     
     while (*currChar) {
         while (*currChar == '~') { /* negation */
@@ -174,7 +178,7 @@ NFA *buildNFA(const char *re, int flags)
                 currChar++;
             }
 
-            currChar=doBrackets(currChar, stateMode, prev, curr, flags & DOTALL);
+            currChar=doBrackets(currChar, stateMode, prev, curr, dotAll);
 
         } else if (*currChar == '(') {
             prev=curr;
@@ -246,6 +250,10 @@ NFA *buildNFA(const char *re, int flags)
             addState(newNFA, next); /* record new state */
             curr=next; /* continue from skip */
 
+        } else if (*currChar == WILDCARD) {
+            prev=curr;
+            curr=state(PLUS, NULL);
+            doWildcard(stateMode, prev, curr, dotAll);
         } else { /* literal */
             prev=curr;
             curr=state(PLUS, NULL);

@@ -10,6 +10,8 @@
 #define PLUS 1
 #define MINUS -1
 
+#define WILDCARD '.'
+
 enum {
     DOTALL=1 << 0,
     MATCHSTART=1 << 1,
@@ -29,12 +31,12 @@ typedef struct _Node Node;
 typedef struct _State State;
 
 struct _Group {
-    unsigned int i[2];
+    int i[2];
 };
 
 struct _MatchObject {
     const char *str;
-    unsigned int n;
+    int n;
     Group *groups;
 };
 
@@ -57,15 +59,13 @@ struct _State {
 
 State *addChild(State *, int, State *);
 
-void addGroup(MatchObject *, unsigned, unsigned);
-
-void checkRE(char *);
+void addGroup(MatchObject *, int, int);
 
 Node *getChild(State *, int);
 
-Group *group(unsigned int, unsigned int);
+Group *group(int, int);
 
-MatchObject *matchObject(const char *, unsigned, Group *);
+MatchObject *matchObject(const char *, int, Group *);
 
 NFA *buildNFA(const char *, int);
 
@@ -75,6 +75,6 @@ Node *popNode(Node *);
 
 State *state(int, State *);
 
-unsigned search(State *, State *, const char *, MatchObject *, int);
+int search(State *, State *, const char *, MatchObject *, int);
 
 #endif
