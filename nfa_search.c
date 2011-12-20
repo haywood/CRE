@@ -37,11 +37,14 @@ SNode *append(SNode *l, unsigned i, SNode *parent, Node *n)
     return l;
 }
 
-SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned int finish, int matchstart, int matchend)
+SNode *search_rec(State *s, State *a, const char *str, unsigned int start, unsigned int finish, int flags)
 {
     SNode *startnode, *curr, *frontier, *sn, *pn, *matches, *lists;
-    int begin, end, alive;
+    int begin, end, alive, matchstart, matchend;
     Node *n;
+
+    matchstart=flags & MATCHSTART;
+    matchend=flags & MATCHEND;
 
     alive = 1;
 
@@ -81,7 +84,7 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
                         
                         /* handle a negated parenthetical */
                         
-                        sn = search_rec(curr->s, curr->s->mate, str, begin, end, 0, 0);
+                        sn = search_rec(curr->s, curr->s->mate, str, begin, end, 0);
                         if (!sn) {
                             append(curr, curr->i, curr, curr->s->trans[EPSILON]);
                             if (curr->i <= end) frontier = append(frontier, curr->i+1, curr, curr->s->trans[(int)str[curr->i]]);
@@ -113,11 +116,11 @@ SNode *search_rec(State *s, State *a, char *str, unsigned int start, unsigned in
     return matches;
 }
 
-unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, int matchend) {
+unsigned search(State *s, State *a, const char *str, MatchObject *m, int flags) {
 
     SNode *beg, *end, *match, *sn;
     
-    match = search_rec(s, a, str, 0, strlen(str), matchstart, matchend);
+    match = search_rec(s, a, str, 0, strlen(str), flags);
     if (m) {
         m->groups = NULL;
         m->str = NULL;

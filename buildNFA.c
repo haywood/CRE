@@ -116,11 +116,6 @@ State *doSkip(State *prnt, State *child)
     return addChild(prnt, EPSILON, addChild(child, EPSILON, state(PLUS, NULL)));
 }
 
-void doLoop(State *prnt, State *child, int symbol)
-{
-    addChild(child, symbol, prnt);
-}
-
 NFA *buildNFA(const char *re, int flags)
 {
     State *prev, *curr, *next, *start, *accept;
@@ -231,8 +226,10 @@ NFA *buildNFA(const char *re, int flags)
             curr=next; /* continue from skip */
 
         } else if (*currChar == '*') {
-            next=doSkip(prev, curr); /* skip from prev to curr */
-            addState(newNFA, next); /* record new state */
+
+            /* save current prev for the skip */
+            subExprStack=node(prev, subExprStack);
+
             if (*(currChar-1) == ')' && *(currChar-2) != '\\') {
                 /* loop to left paren */
                 prev=getChild(prev, EPSILON)->s;
@@ -240,6 +237,13 @@ NFA *buildNFA(const char *re, int flags)
             } else { /* loop to self */
                 addChild(curr, *(currChar-1), curr);
             }
+
+            /* retrive old prev */
+            prev=subExprStack->s;
+            subExprStack=popNode(subExprStack);
+
+            next=doSkip(prev, curr); /* skip from prev to curr */
+            addState(newNFA, next); /* record new state */
             curr=next; /* continue from skip */
 
         } else { /* literal */

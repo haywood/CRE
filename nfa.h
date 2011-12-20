@@ -34,7 +34,7 @@ struct _Group {
 };
 
 struct _MatchObject {
-    char *str;
+    const char *str;
     unsigned int n;
     Group *groups;
 };
@@ -66,7 +66,7 @@ Node *getChild(State *, int);
 
 Group *group(unsigned int, unsigned, Group *);
 
-MatchObject *matchObject(char *, unsigned, Group *);
+MatchObject *matchObject(const char *, unsigned, Group *);
 
 NFA *buildNFA(const char *, int);
 
@@ -76,6 +76,6 @@ Node *popNode(Node *);
 
 State *state(int, State *);
 
-unsigned search(State *, State *, char *, MatchObject *, int, int);
+unsigned search(State *, State *, const char *, MatchObject *, int);
 
 #endif

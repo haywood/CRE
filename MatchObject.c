@@ -35,11 +35,10 @@ Group *group(unsigned int b, unsigned int e, Group *n)
     return g;
 }
 
-MatchObject *matchObject(char *str, unsigned n, Group *g)
+MatchObject *matchObject(const char *str, unsigned n, Group *g)
 {
     MatchObject *m = (MatchObject *)malloc(sizeof(MatchObject));
-    m->str = malloc((1+strlen(str))*sizeof(char));
-    memcpy(m->str, str, (1+strlen(str))*sizeof(char));
+    m->str = str;
     m->n = n;
     m->groups = g;
     return m;

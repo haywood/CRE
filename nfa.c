@@ -9,20 +9,19 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "nfa.h"
+#include "re.h"
 
 int main(int argc, char **argv)
 {
     MatchObject m;
     unsigned i, k;
-    Node *n, *t;
-    NFA *d;
+    int matched;
+    RE *re;
 
     if (argc > 2) {
-        checkRE(argv[1]);
-        d = buildNFA(argv[1], 0);
-        printf("%s search %s = %d\n", argv[1], argv[2], 
-                search(d->start, d->accept, argv[2], &m, d->flags & MATCHSTART, d->flags & MATCHEND));
+        re = compileRE(argv[1], 0);
+        matched=rematch(re, argv[2], &m);
+        printf("%s search %s = %d\n", argv[1], argv[2], matched);
         printf("%u capture groups:\n", m.n);
         if (m.groups) {
             for (i = 0; i <= m.n; ++i) {
@@ -32,15 +31,8 @@ int main(int argc, char **argv)
                 putchar('\n');
             }
         }
-        n = d->start->trans[STATE_LIST];
-        while ((t=n)) {
-            free(n->s);
-            n=n->next;
-            free(t);
-        }
-        free(d->start);
-        free(d->accept);
-        free(d);
+        free(m.groups);
+        freere(re);
     }
     return 0;
 }
