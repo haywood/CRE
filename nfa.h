@@ -10,30 +10,45 @@
 #define PLUS 1
 #define MINUS -1
 
-typedef enum {
-    DOTALL=1
-} NFA_option;
+enum {
+    DOTALL=1 << 0,
+    MATCHSTART=1 << 1,
+    MATCHEND=1 << 2
+};
 
-typedef enum {
+enum {
     EPSILON,
     STATE_LIST=CHAR_MAX+1,
     NUM_SYMB
-} NFA_symbol;
+};
 
+typedef struct _Group Group;
+typedef struct _MatchObject MatchObject;
+typedef struct _NFA NFA;
+typedef struct _Node Node;
 typedef struct _State State;
 
-typedef struct _NFA {
+struct _Group {
+    unsigned int i[2];
+    struct _Group *next;
+};
+
+struct _MatchObject {
+    char *str;
+    unsigned int n;
+    Group *groups;
+};
+
+struct _NFA {
     State *start, 
           *accept;
-    int empty, /* if matches empty */
-        matchstart, /* anchor at start */
-        matchend; /* anchor at end */
-} NFA;
+    int flags;
+};
 
-typedef struct _Node {
+struct _Node {
     State *s;
     struct _Node *next;
-} Node;
+};
 
 struct _State {
     int mode; /* context */
@@ -41,35 +56,26 @@ struct _State {
     State *mate; /* matching state if a delimiter */
 };
 
-typedef struct _Group {
-    unsigned int i[2];
-    struct _Group *next;
-} Group;
+State *addChild(State *, int, State *);
 
-typedef struct _MatchObject {
-    char *str;
-    unsigned int n;
-    Group *groups;
-} MatchObject;
+void addGroup(MatchObject *, unsigned, unsigned);
 
-State *state(int, State *);
+void checkRE(char *);
 
-Node *node(State *, Node *);
-
-Node *pop(Node *);
+Node *getChild(State *, int);
 
 Group *group(unsigned int, unsigned, Group *);
 
 MatchObject *matchObject(char *, unsigned, Group *);
 
-void add_group(MatchObject *, unsigned, unsigned);
+NFA *buildNFA(const char *, int);
 
-NFA *nfa(char *, int);
+Node *node(State *, Node *);
 
-State *add_child(State *, int, State *);
+Node *popNode(Node *);
+
+State *state(int, State *);
 
 unsigned search(State *, State *, char *, MatchObject *, int, int);
-
-void check_re(char *);
 
 #endif

@@ -5,53 +5,14 @@
 #include <ctype.h>
 #include "nfa.h"
 
-State *state(int mode, State *mate)
+State *addChild(State *s, int t, State *c)
 {
-    State *s = (State *)malloc(sizeof(State));
-    s->mode = mode;
-    s->mate = mate;
-    memset(s->trans, 0, NUM_SYMB*sizeof(Node *));
-    return s;
+    if (!s || !c) return NULL;
+    s->trans[t] = node(c, s->trans[t]);
+    return c;
 }
 
-Node *node(State *s, Node *n)
-{
-    Node *no = (Node *)malloc(sizeof(Node));
-    no->s = s;
-    no->next = n;
-    return no;
-}
-
-Node *pop(Node *n)
-{
-    Node *o = n;
-    if (o) {
-        n = n->next;
-        free(o);
-    }
-    return n;
-}
-
-Group *group(unsigned int b, unsigned int e, Group *n)
-{
-    Group *g = (Group *)malloc(sizeof(Group));
-    g->i[0] = b;
-    g->i[1] = e;
-    g->next = n;
-    return g;
-}
-
-MatchObject *matchObject(char *str, unsigned n, Group *g)
-{
-    MatchObject *m = (MatchObject *)malloc(sizeof(MatchObject));
-    m->str = malloc((1+strlen(str))*sizeof(char));
-    memcpy(m->str, str, (1+strlen(str))*sizeof(char));
-    m->n = n;
-    m->groups = g;
-    return m;
-}
-
-void add_group(MatchObject *m, unsigned b, unsigned e)
+void addGroup(MatchObject *m, unsigned b, unsigned e)
 {
     unsigned i = m->n, swapped;
     Group g[2];
@@ -74,11 +35,29 @@ void add_group(MatchObject *m, unsigned b, unsigned e)
     } while (swapped);
 }
 
-
-State *add_child(State *s, int t, State *c)
+Node *getChild(State *s, int t)
 {
-    s->trans[t] = node(c, s->trans[t]);
-    return c;
+    if (!s) return NULL;
+    return s->trans[t];
+}
+
+Group *group(unsigned int b, unsigned int e, Group *n)
+{
+    Group *g = (Group *)malloc(sizeof(Group));
+    g->i[0] = b;
+    g->i[1] = e;
+    g->next = n;
+    return g;
+}
+
+MatchObject *matchObject(char *str, unsigned n, Group *g)
+{
+    MatchObject *m = (MatchObject *)malloc(sizeof(MatchObject));
+    m->str = malloc((1+strlen(str))*sizeof(char));
+    memcpy(m->str, str, (1+strlen(str))*sizeof(char));
+    m->n = n;
+    m->groups = g;
+    return m;
 }
 
 void add_state(NFA *nfa, State *s)
@@ -121,7 +100,7 @@ NFA * nfa(char *re, int options)
 
     delim = node(n->start, NULL);
     c = re;
-    curr = add_child(n->start, EPSILON, state(PLUS, NULL));
+    curr = addChild(n->start, EPSILON, state(PLUS, NULL));
     add_state(n, curr);
     prev = n->start;
 
@@ -144,7 +123,7 @@ NFA * nfa(char *re, int options)
 
             n->matchend = 1;
             prev = curr;
-            curr = add_child(prev, EPSILON, state(PLUS, NULL));
+            curr = addChild(prev, EPSILON, state(PLUS, NULL));
 
         } else if (*c == '\\') { /* escape */
 
@@ -154,14 +133,14 @@ NFA * nfa(char *re, int options)
             if (isCharClass(*c)) {
                 for (i=1; i <= CHAR_MAX; ++i) {
                     if (isCharClassMember(i, *c, islower(*c) ? mode : -mode))
-                        add_child(prev, i, curr);
+                        addChild(prev, i, curr);
                 }
             } else {
                 if (mode == PLUS) {
-                    add_child(prev, *c, curr);
+                    addChild(prev, *c, curr);
                 } else {
                     for (i = 1; i <= CHAR_MAX; ++i)
-                        if (i != *c) add_child(prev, i, curr);
+                        if (i != *c) addChild(prev, i, curr);
                 }
             }
 
@@ -182,23 +161,23 @@ NFA * nfa(char *re, int options)
                             if (isCharClass(*c)) {
                                 for (i=1; i <= CHAR_MAX; ++i) {
                                     if (isCharClassMember(i, *c, islower(*c) ? mode : -mode)) {
-                                        add_child(prev, i, curr);
+                                        addChild(prev, i, curr);
                                     }
                                 }
-                            } else add_child(prev, (int)*c, curr);
+                            } else addChild(prev, (int)*c, curr);
                             break;
                         case '.':
                             for (i = 1; i <= CHAR_MAX; ++i)
-                                if (!isspace(i)) add_child(prev, i, curr);
+                                if (!isspace(i)) addChild(prev, i, curr);
                             break;
                         default:
-                            add_child(prev, (int)*c, curr);
+                            addChild(prev, (int)*c, curr);
                             break;
                     }
                 }
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    add_child(prev, i, curr);
+                    addChild(prev, i, curr);
                 }
                 while (*++c != ']') {
                     switch (*c) {
@@ -225,17 +204,17 @@ NFA * nfa(char *re, int options)
         } else if (*c == '(') { /* start subexpression */
 
             mode = mode*delim->s->mode;
-            curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* create new level and connect it to current */
+            curr = addChild(curr, EPSILON, state(PLUS, NULL)); /* create new level and connect it to current */
             delim = node(curr, delim); /* store the new level in delim */
-            prev = curr = add_child(curr, EPSILON, state(mode, state(mode, NULL))); /* add lparen and its mate rparen */
-            curr = add_child(curr, EPSILON, state(PLUS, NULL)); /* entry point for alternation */
+            prev = curr = addChild(curr, EPSILON, state(mode, state(mode, NULL))); /* add lparen and its mate rparen */
+            curr = addChild(curr, EPSILON, state(PLUS, NULL)); /* entry point for alternation */
             add_state(n, delim->s);
             add_state(n, delim->s->trans[EPSILON]->s);
 
         } else if (*c == ')') { /* end subexpression */
 
             prev = delim->s->trans[EPSILON]->s; /* get root of level */
-            curr = add_child(curr, EPSILON, prev->mate); /* connect child to delim mate */
+            curr = addChild(curr, EPSILON, prev->mate); /* connect child to delim mate */
             if (*(c+1) != '+' && *(c+1) != '*' && *(c+1) != '?')
                 delim = pop(delim); /* pop current level */
 
@@ -246,13 +225,13 @@ NFA * nfa(char *re, int options)
             } else {
                 prev = delim->s;
             }
-            add_child(curr, EPSILON, prev->mate);
-            curr = add_child(prev, EPSILON, state(PLUS, NULL));
+            addChild(curr, EPSILON, prev->mate);
+            curr = addChild(prev, EPSILON, state(PLUS, NULL));
 
         } else if (*c == '+') { /* one or more */
 
             if (*(c-1) == ')') {
-                add_child(curr, EPSILON, delim->s->trans[EPSILON]->s);
+                addChild(curr, EPSILON, delim->s->trans[EPSILON]->s);
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
@@ -260,13 +239,13 @@ NFA * nfa(char *re, int options)
                         curr->trans[i] = prev->trans[i];
             }
             prev = curr;
-            curr = add_child(curr, EPSILON, state(PLUS, NULL));
+            curr = addChild(curr, EPSILON, state(PLUS, NULL));
 
         } else if (*c == '*') { /* zero or more */
 
             if (*(c-1) == ')') {
                 prev = delim->s;
-                add_child(curr, EPSILON, delim->s->trans[EPSILON]->s);
+                addChild(curr, EPSILON, delim->s->trans[EPSILON]->s);
                 delim = pop(delim);
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i)
@@ -275,8 +254,8 @@ NFA * nfa(char *re, int options)
             }
 
             next = state(PLUS, NULL);
-            add_child(prev, EPSILON, next);
-            curr = add_child(curr, EPSILON, next);
+            addChild(prev, EPSILON, next);
+            curr = addChild(curr, EPSILON, next);
 
         } else if (*c == '?') { /* zero or one */
 
@@ -285,8 +264,8 @@ NFA * nfa(char *re, int options)
                 delim = pop(delim);
             }
             next = state(PLUS, NULL);
-            add_child(prev, EPSILON, next);
-            curr = add_child(curr, EPSILON, next);
+            addChild(prev, EPSILON, next);
+            curr = addChild(curr, EPSILON, next);
 
         } else if (*c == '.') { /* wildcard */
 
@@ -294,11 +273,11 @@ NFA * nfa(char *re, int options)
             curr = state(PLUS, NULL);
             if (mode == PLUS) {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (!isspace(i) || (options & DOTALL)) add_child(prev, i, curr);
+                    if (!isspace(i) || (options & DOTALL)) addChild(prev, i, curr);
                 }
             } else {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (isspace(i) && !(options & DOTALL)) add_child(prev, i, curr);
+                    if (isspace(i) && !(options & DOTALL)) addChild(prev, i, curr);
                 }
             }
 
@@ -307,10 +286,10 @@ NFA * nfa(char *re, int options)
             prev = curr;
             curr = state(PLUS, NULL);
             if (mode == PLUS) {
-                add_child(prev, *c, curr);
+                addChild(prev, *c, curr);
             } else if (mode == MINUS) {
                 for (i = 1; i <= CHAR_MAX; ++i) {
-                    if (i != *c) add_child(prev, i, curr);
+                    if (i != *c) addChild(prev, i, curr);
                 }
             }
 
@@ -322,7 +301,7 @@ NFA * nfa(char *re, int options)
 
     } /* while */
 
-    add_child(curr, EPSILON, n->accept);
+    addChild(curr, EPSILON, n->accept);
     n->empty=0;
     r = p = delim;
     assert(p->s == n->start);
@@ -341,3 +320,31 @@ NFA * nfa(char *re, int options)
 
     return n;
 }
+
+Node *node(State *s, Node *n)
+{
+    Node *no = (Node *)malloc(sizeof(Node));
+    no->s = s;
+    no->next = n;
+    return no;
+}
+
+Node *popNode(Node *n)
+{
+    Node *o = n;
+    if (o) {
+        n = n->next;
+        free(o);
+    }
+    return n;
+}
+
+State *state(int mode, State *mate)
+{
+    State *s = (State *)malloc(sizeof(State));
+    s->mode = mode;
+    s->mate = mate;
+    memset(s->trans, 0, NUM_SYMB*sizeof(Node *));
+    return s;
+}
+

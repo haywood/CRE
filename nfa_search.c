@@ -145,7 +145,7 @@ unsigned search(State *s, State *a, char *str, MatchObject *m, int matchstart, i
                     end = beg->next;
                     while (end && end->s != beg->s->mate)
                         end = end->next;
-                    add_group(m, beg->i, end->i);
+                    addGroup(m, beg->i, end->i);
                 }
                 sn=beg;
                 beg=beg->next;

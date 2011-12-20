@@ -19,10 +19,10 @@ int main(int argc, char **argv)
     NFA *d;
 
     if (argc > 2) {
-        check_re(argv[1]);
-        d = nfa(argv[1], 0);
+        checkRE(argv[1]);
+        d = buildNFA(argv[1], 0);
         printf("%s search %s = %d\n", argv[1], argv[2], 
-                search(d->start, d->accept, argv[2], &m, d->matchstart, d->matchend));
+                search(d->start, d->accept, argv[2], &m, d->flags & MATCHSTART, d->flags & MATCHEND));
         printf("%u capture groups:\n", m.n);
         if (m.groups) {
             for (i = 0; i <= m.n; ++i) {
@@ -32,7 +32,6 @@ int main(int argc, char **argv)
                 putchar('\n');
             }
         }
-        printf("Match empty: %d\n", d->empty);
         n = d->start->trans[STATE_LIST];
         while ((t=n)) {
             free(n->s);
