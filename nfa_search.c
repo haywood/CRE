@@ -6,7 +6,7 @@
 
 typedef struct _SNode {
     State *s;
-    unsigned i;
+    int i;
     struct _SNode *parent,
                   *next;
 } SNode;
@@ -37,7 +37,7 @@ SNode *append(SNode *l, unsigned i, SNode *parent, Node *n)
     return l;
 }
 
-SNode *search_rec(State *s, State *a, const char *str, unsigned int start, unsigned int finish, int flags)
+SNode *search_rec(State *s, State *a, const char *str, int start, int finish, int flags)
 {
     SNode *startnode, *curr, *frontier, *sn, *pn, *matches, *lists;
     int begin, end, alive, matchstart, matchend;

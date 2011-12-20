@@ -26,21 +26,20 @@ void addGroup(MatchObject *m, unsigned b, unsigned e)
     } while (swapped);
 }
 
-Group *group(unsigned int b, unsigned int e, Group *n)
+Group *group(unsigned int b, unsigned int e)
 {
     Group *g = (Group *)malloc(sizeof(Group));
     g->i[0] = b;
     g->i[1] = e;
-    g->next = n;
     return g;
 }
 
 MatchObject *matchObject(const char *str, unsigned n, Group *g)
 {
     MatchObject *m = (MatchObject *)malloc(sizeof(MatchObject));
+    m->groups = g;
     m->str = str;
     m->n = n;
-    m->groups = g;
     return m;
 }
 

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-g3 -Wall -Wextra -pedantic
+CFLAGS=-g3 -O0 -Wall -Wextra -pedantic
 OBJ=nfa.o buildNFA.o nfa_search.o nfa_syntax.o MatchObject.o
 
 all: nfa

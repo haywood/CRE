@@ -30,7 +30,6 @@ typedef struct _State State;
 
 struct _Group {
     unsigned int i[2];
-    struct _Group *next;
 };
 
 struct _MatchObject {
@@ -64,7 +63,7 @@ void checkRE(char *);
 
 Node *getChild(State *, int);
 
-Group *group(unsigned int, unsigned, Group *);
+Group *group(unsigned int, unsigned int);
 
 MatchObject *matchObject(const char *, unsigned, Group *);
 

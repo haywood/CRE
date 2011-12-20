@@ -16,12 +16,15 @@ int main(int argc, char **argv)
     MatchObject m;
     unsigned i, k;
     int matched;
+    char *str;
     RE *re;
 
     if (argc > 2) {
         re = compileRE(argv[1], 0);
-        matched=rematch(re, argv[2], &m);
-        printf("%s search %s = %d\n", argv[1], argv[2], matched);
+        str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
+        strcpy(str, argv[2]);
+        matched=rematch(re, str, &m);
+        printf("%s search %s = %d\n", re->restr, str, matched);
         printf("%u capture groups:\n", m.n);
         if (m.groups) {
             for (i = 0; i <= m.n; ++i) {
@@ -32,6 +35,8 @@ int main(int argc, char **argv)
             }
         }
         free(m.groups);
+        rereplace(re, &str, "Hello World!", 0);
+        printf("%s\n", str);
         freere(re);
     }
     return 0;
