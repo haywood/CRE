@@ -7,15 +7,18 @@
 
 #include <limits.h>
 
-#define PLUS 1
-#define MINUS -1
-
 #define WILDCARD '.'
 
 enum {
     DOTALL=1 << 0,
     MATCHSTART=1 << 1,
     MATCHEND=1 << 2
+};
+
+enum {
+    NONE=0,
+    LPAREN=1 << 0,
+    MINUS=1 << 1
 };
 
 enum {
@@ -61,13 +64,19 @@ State *addChild(State *, int, State *);
 
 void addGroup(MatchObject *, int, int);
 
+void appendChildren(State *, int, State *);
+
 Node *getChild(State *, int);
 
 Group *group(int, int);
 
+int isCharClass(int);
+
+int isCharClassMember(char, int);
+
 MatchObject *matchObject(const char *, int, Group *);
 
-NFA *buildNFA(const char *, int);
+int legalChar(int);
 
 Node *node(State *, Node *);
 

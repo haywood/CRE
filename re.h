@@ -1,6 +1,7 @@
 #ifndef RE_H_
 #define RE_H_
 
+#include "buildMYT.h"
 #include "nfa.h"
 
 typedef struct _RE RE;
@@ -109,7 +110,11 @@ inline RE *compileRE(const char *restr, int flags)
     recpy=(char *)calloc((1+(end-beg)), sizeof(char));
     memcpy(recpy, beg, end-beg);
 
-    re->nfa=buildNFA(recpy, flags);
+    /* re->nfa=buildNFA(recpy, flags); */
+    re->nfa=(NFA *)malloc(sizeof(NFA));
+    re->nfa->start=buildMYT(recpy, recpy+strlen(recpy), NONE, flags);
+    re->nfa->accept=re->nfa->start->mate;
+    re->nfa->flags=flags;
     re->restr=(char *)calloc((1+reLen), sizeof(char));
     memcpy(re->restr, restr, reLen);
 
@@ -148,7 +153,7 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     Group *grp0;
     char *matchBegin, *matchEnd;
 
-    if (!re && str && *str && repl) return 0;
+    if (!(re && str && *str && repl)) return 0;
 
     replLen=strlen(repl);
     strLen=strlen(*str);
@@ -166,32 +171,36 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
         matchLen=matchEnd-matchBegin;
         pos=matchBegin-*str;
 
-        lenChange=replLen-matchLen;
+        if (matchLen) {
+            lenChange=replLen-matchLen;
 
-        /* if shrinking move the rest of the string to the left before resizing */
-        if (replLen < matchLen) memmove(matchBegin+replLen, matchEnd, strlen(matchEnd));
+            /* if shrinking move the rest of the string to the left before resizing */
+            if (replLen < matchLen) memmove(matchBegin+replLen, matchEnd, strlen(matchEnd));
 
-        if (lenChange != 0) {
-            strLen=strLen+lenChange; /* calculate new length of string */
-            *str=(char *)realloc(*str, (1+strLen)*sizeof(char)); /* reallocate */
-            if (!*str) {
-                fprintf(stderr, "rereplace: out of memory\n");
-                exit(1);
+            if (lenChange != 0) {
+                strLen=strLen+lenChange; /* calculate new length of string */
+                *str=(char *)realloc(*str, (1+strLen)*sizeof(char)); /* reallocate */
+                if (!*str) {
+                    fprintf(stderr, "rereplace: out of memory\n");
+                    exit(1);
+                }
+
+                (*str)[strLen]='\0'; /* null terminate */
+                matchBegin=*str+pos; /* make sure matchBegin moves with *str */
+                matchEnd=matchBegin+matchLen;
             }
 
-            (*str)[strLen]='\0'; /* null terminate */
-            matchBegin=*str+pos; /* make sure matchBegin moves with *str */
-            matchEnd=matchBegin+matchLen;
-        }
+            /* if growing move the rest of the string to the right after resizing */
+            if (replLen > matchLen) memmove(matchBegin+replLen, matchEnd, strlen(matchEnd));
 
-        /* if growing move the rest of the string to the right after resizing */
-        if (replLen > matchLen) memmove(matchBegin+replLen, matchEnd, strlen(matchEnd));
-
-        memcpy(matchBegin, repl, replLen); /* insert the replacement */
-        matchBegin+=replLen; /* advance matchBegin to end of replacement substring */
-        keepGoing=replaceAll;
-        count++;
+            memcpy(matchBegin, repl, replLen); /* insert the replacement */
+            matchBegin+=replLen; /* advance matchBegin to end of replacement substring */
+            keepGoing=replaceAll;
+            count++;
+        } else matchBegin++;
     }
+
+    free(m.groups);
 
     return count;
 }
@@ -219,12 +228,18 @@ inline char *resep(RE *re, char **str)
             grp0=match.groups;
             matchLen=grp0->i[1] - grp0->i[0];
 
-            /* fill the area of the match with null terminators */
-            *str+=grp0->i[0]; /* advance to start of match */
-            while (matchLen--) *(*str)++='\0'; /* pad the match */
+            if (matchLen) {
+                /* fill the area of the match with null terminators */
+                *str+=grp0->i[0]; /* advance to start of match */
+                while (matchLen--) *(*str)++='\0'; /* pad the match */
+            } else {
+                (*str)++;
+            }
 
         } else while (**str) (*str)++;
     } while (!*token && **str);
+
+    free(match.groups);
 
     return token;
 }
@@ -245,7 +260,6 @@ inline void freere(RE *re)
             free(t);
         }
         free(re->nfa->start);
-        free(re->nfa->accept);
         free(re->nfa);
     }
     free(re->restr);

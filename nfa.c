@@ -15,13 +15,15 @@ int main(int argc, char **argv)
 {
     MatchObject m;
     int matched, i, k;
-    char *str, *token;
+    char *str, *token, *orig;
     RE *re;
 
     if (argc > 2) {
         re = compileRE(argv[1], 0);
+
         str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
         strcpy(str, argv[2]);
+
         memset(&m, 0, sizeof(MatchObject));
         matched=rematch(re, str, &m);
         printf("%s search %s = %d\n", re->restr, str, matched);
@@ -37,10 +39,16 @@ int main(int argc, char **argv)
         free(m.groups);
         rereplace(re, &str, ":)", 1);
         printf("%s\n", str);
-        while ((token=resep(re, argv+2))) {
+
+        free(str);
+        orig = str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
+        strcpy(str, argv[2]);
+
+        while ((token=resep(re, &str))) {
             printf("%s\n", token);
         }
         freere(re);
+        free(orig);
     }
     return 0;
 }
