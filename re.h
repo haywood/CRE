@@ -157,6 +157,8 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     keepGoing=1;
     matchBegin=*str;
 
+    memset(&m, 0, sizeof(MatchObject));
+
     while (keepGoing && *matchBegin && rematch(re, matchBegin, &m)) {
         grp0=m.groups;
         matchEnd=matchBegin+grp0->i[1];
@@ -192,6 +194,39 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     }
 
     return count;
+}
+
+/**
+ * Return a pointer to the start of the first substring of *str that re does not match. 
+ * Advance *str past the first substring that re does match.
+ * If no matching substring is found, returns the original value of *str while advancing *str to its end.
+ * The substring matched by re is overriden with null characters as *str is advanced past it.
+ */
+inline char *resep(RE *re, char **str)
+{
+    MatchObject match;
+    int matchLen;
+    char *token;
+    Group *grp0;
+
+    if (!re || !str || !*str || !**str) return NULL;
+
+    memset(&match, 0, sizeof(MatchObject));
+
+    do {
+        token=*str;
+        if (rematch(re, *str, &match)) {
+            grp0=match.groups;
+            matchLen=grp0->i[1] - grp0->i[0];
+
+            /* fill the area of the match with null terminators */
+            *str+=grp0->i[0]; /* advance to start of match */
+            while (matchLen--) *(*str)++='\0'; /* pad the match */
+
+        } else while (**str) (*str)++;
+    } while (!*token && **str);
+
+    return token;
 }
 
 /**

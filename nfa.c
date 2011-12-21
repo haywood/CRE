@@ -15,13 +15,14 @@ int main(int argc, char **argv)
 {
     MatchObject m;
     int matched, i, k;
-    char *str;
+    char *str, *token;
     RE *re;
 
     if (argc > 2) {
         re = compileRE(argv[1], 0);
         str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
         strcpy(str, argv[2]);
+        memset(&m, 0, sizeof(MatchObject));
         matched=rematch(re, str, &m);
         printf("%s search %s = %d\n", re->restr, str, matched);
         printf("%u capture groups:\n", m.n);
@@ -36,6 +37,9 @@ int main(int argc, char **argv)
         free(m.groups);
         rereplace(re, &str, ":)", 1);
         printf("%s\n", str);
+        while ((token=resep(re, argv+2))) {
+            printf("%s\n", token);
+        }
         freere(re);
     }
     return 0;

@@ -122,7 +122,6 @@ int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
     
     match = search_rec(s, a, str, 0, strlen(str), flags);
     if (match) {
-        puts("matched");
         if (match->next) { /* this should never happen, but if somehow it does... */
             end = match->next;
             while ((beg=end)) {
@@ -134,7 +133,6 @@ int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
             }
         }
         if (m) {
-            puts("calculating groups");
             m->groups = NULL;
             m->str = NULL;
             m->n = 0;
