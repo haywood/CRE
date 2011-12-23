@@ -110,9 +110,8 @@ inline RE *compileRE(const char *restr, int flags)
     recpy=(char *)calloc((1+(end-beg)), sizeof(char));
     memcpy(recpy, beg, end-beg);
 
-    /* re->nfa=buildNFA(recpy, flags); */
     re->nfa=(NFA *)malloc(sizeof(NFA));
-    re->nfa->start=buildMYT(recpy, recpy+strlen(recpy), NONE, flags);
+    re->nfa->start=buildMYT(recpy, recpy+strlen(recpy), flags);
     re->nfa->accept=re->nfa->start->mate;
     re->nfa->flags=flags;
     re->restr=(char *)calloc((1+reLen), sizeof(char));
@@ -211,37 +210,74 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
  * If no matching substring is found, returns the original value of *str while advancing *str to its end.
  * The substring matched by re is overriden with null characters as *str is advanced past it.
  */
-inline char *resep(RE *re, char **str)
+inline char *resep(RE *re, char **str, char **token)
 {
+    int matchLen, tokLen;
     MatchObject match;
-    int matchLen;
-    char *token;
     Group *grp0;
+    char *orig;
 
     if (!re || !str || !*str || !**str) return NULL;
 
     memset(&match, 0, sizeof(MatchObject));
 
-    do {
-        token=*str;
-        if (rematch(re, *str, &match)) {
-            grp0=match.groups;
-            matchLen=grp0->i[1] - grp0->i[0];
+    orig=*str;
+    matchLen=0;
+    grp0=NULL;
 
-            if (matchLen) {
-                /* fill the area of the match with null terminators */
-                *str+=grp0->i[0]; /* advance to start of match */
-                while (matchLen--) *(*str)++='\0'; /* pad the match */
+    /* find first match */
+    if (rematch(re, *str, &match)) {
+        grp0=match.groups;
+        matchLen=grp0->i[1] - grp0->i[0];
+
+        if (matchLen) { /* non-empty match */
+            orig=*str+=grp0->i[1]; /* advance past first match */
+            matchLen=0;
+
+            /* find next match */
+            if (rematch(re, *str, &match)) {
+                grp0=match.groups;
+                matchLen=grp0->i[1] - grp0->i[0];
+
+                if (matchLen) { /* non-empty match */
+                    *str+=grp0->i[0]; /* advance to next match */
+
+                } else {
+                    (*str)++;
+                }
+
             } else {
-                (*str)++;
+                while (**str) (*str)++;
             }
 
-        } else while (**str) (*str)++;
-    } while (!*token && **str);
+        } else {
+            (*str)++;
+        }
 
-    free(match.groups);
+    } else {
+        while (**str) (*str)++;
+    }
 
-    return token;
+    tokLen=*str-orig;
+    if (*orig) {
+        *token=(char *)realloc(*token, (1+tokLen)*sizeof(char));
+        if (!*token) {
+            fprintf(stderr, "error: resep: out of memory\n");
+            exit(1);
+        }
+
+        memcpy(*token, orig, tokLen);
+        (*token)[tokLen]='\0';
+        if (!**str) *str=NULL;
+
+    } else {
+        free(*token);
+        *token=NULL;
+        *str=NULL;
+    }
+    free(grp0);
+
+    return *token;
 }
 
 /**

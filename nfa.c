@@ -15,7 +15,7 @@ int main(int argc, char **argv)
 {
     MatchObject m;
     int matched, i, k;
-    char *str, *token, *orig;
+    char *str, *token;
     RE *re;
 
     if (argc > 2) {
@@ -41,14 +41,13 @@ int main(int argc, char **argv)
         printf("%s\n", str);
 
         free(str);
-        orig = str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
-        strcpy(str, argv[2]);
+        str=argv[2];
+        token=NULL;
 
-        while ((token=resep(re, &str))) {
+        while (resep(re, &str, &token)) {
             printf("%s\n", token);
         }
         freere(re);
-        free(orig);
     }
     return 0;
 }
