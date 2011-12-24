@@ -4,10 +4,10 @@ OBJ=nfa.o buildNFA.o nfa_search.o MatchObject.o
 
 all: nfa
 
-nfa: $(OBJ) nfa.h re.h buildMYT.h
+nfa: $(OBJ) nfa.h re.h buildMYT.h checkRE.h
 	$(CC) -o $@ $(OBJ) $(CFLAGS)
 
-nfa.o: nfa.c re.h buildMYT.h
+nfa.o: nfa.c nfa.h re.h buildMYT.h checkRE.h
 	$(CC) -c $< $(CFLAGS)
 
 buildNFA.o: buildNFA.c nfa.h

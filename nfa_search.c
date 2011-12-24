@@ -106,6 +106,7 @@ SNode *search_rec(State *s, State *a, const char *str, int start, int finish, in
 int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
 
     SNode *beg, *end, *match, *sn;
+    int paren, lparen, rparen;
     
     match = search_rec(s, a, str, 0, strlen(str), flags);
     if (match) {
@@ -134,10 +135,17 @@ int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
             addGroup(m, beg->i, match->i);
 
             while (beg->s != a) {
-                if (beg->s->mode & LPAREN) {
+                lparen=beg->s->mode & LPAREN;
+                if (lparen) { /* left paren */
                     end = beg->next;
-                    while (end && end->s != beg->s->mate)
-                        end = end->next;
+                    paren=1;
+                    while (paren) { /* find match */
+                        lparen=end->s->mode & LPAREN;
+                        rparen=end->s->mode & RPAREN;
+                        if (lparen) paren++;
+                        else if (rparen) paren--;
+                        if (paren) end = end->next;
+                    }
                     addGroup(m, beg->i, end->i);
                 }
                 sn=beg;

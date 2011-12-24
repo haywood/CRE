@@ -1,6 +1,7 @@
 #ifndef RE_H_
 #define RE_H_
 
+#include "checkRE.h"
 #include "buildMYT.h"
 #include "nfa.h"
 
@@ -11,71 +12,6 @@ struct _RE {
     NFA *nfa;
 };
 
-
-/**
- * Check the syntax of a regular expression string.
- */
-inline void checkRE(char *re)
-{
-    int bracket=0, paren=0, error=0;
-    char *c=re;
-
-#define isQuant(c) ( (c) == '*' || (c) == '+' || (c) == '?' )
-#define atStart ( c-1 == re || *(c-1) == '(' )
-#define atEnd ( *(c+1) == '\0' || *(c+1) == ')' )
-
-    while (*c) {
-        if (!isgraph(*c) && !isspace(*c)) {
-            fprintf(stderr, "error: in checkRE, illegal control chracter: %c\n", *c);
-            error=1;
-
-        }
-        if (*c == '\\') {
-            c++;
-
-        } else if (*c == '|' && (atStart || atEnd)) {
-            fprintf(stderr, "error: in checkRE, misplaced %c\n", *c);
-            error=1;
-
-        } else if (*c == '~' && (c-1 == re || atEnd)) {
-            fprintf(stderr, "error: in checkRE, misplaced %c\n", *c);
-            error=1;
-
-        } else if (!bracket && (atStart || isQuant(*(c-1))) && isQuant(*c)) {
-            fprintf(stderr, "error: in checkRE, expecting literal or delimiter, but found quantifier or operator instead: %c\n", *c);
-            error=1;
-
-        } else if (*c == '[') {
-            if (!bracket) bracket=1;
-
-        } else if (*c == ']') {
-            if (!bracket) {
-                fprintf(stderr, "error: in checkRE, unmatched ]\n");
-                error=1;
-            } else bracket=0;
-
-        } else if (*c == '(' && !bracket) {
-            paren++;
-
-        } else if (*c == ')' && !bracket) {
-            if (paren) paren--;
-            else {
-                fprintf(stderr, "error: in checkRE, unmatched )\n");
-                error=1;
-            }
-        }
-        c++;
-    }
-    if (bracket || paren) {
-        if (bracket) fprintf(stderr, "error: in checkRE, unmatched [\n");
-        else if (paren) fprintf(stderr, "error: in checkRE, unmatched (\n");
-        error=1;
-    }
-    if (error) {
-        fprintf(stderr, "exiting due to previous errors\n");
-        exit(1);
-    }
-}
 
 /**
  * Compile an RE struct from restr.
@@ -96,6 +32,8 @@ inline RE *compileRE(const char *restr, int flags)
     reLen=strlen(restr);
     beg=restr;
     end=restr+reLen;
+
+    checkRE(restr, restr+reLen);
 
     if (*restr=='^') {
         flags|=MATCHSTART;
@@ -212,7 +150,7 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
  */
 inline char *resep(RE *re, char **str, char **token)
 {
-    int matchLen, tokLen;
+    int matchLen, tokLen, i;
     MatchObject match;
     Group *grp0;
     char *orig;
@@ -222,42 +160,34 @@ inline char *resep(RE *re, char **str, char **token)
     memset(&match, 0, sizeof(MatchObject));
 
     orig=*str;
-    matchLen=0;
     grp0=NULL;
 
     /* find first match */
-    if (rematch(re, *str, &match)) {
-        grp0=match.groups;
-        matchLen=grp0->i[1] - grp0->i[0];
+    for (i=0; **str && i < 2; ++i) {
+        matchLen=0;
+        if (rematch(re, *str, &match)) {
+            grp0=match.groups;
+            matchLen=grp0->i[1] - grp0->i[0];
 
-        if (matchLen) { /* non-empty match */
-            orig=*str+=grp0->i[1]; /* advance past first match */
-            matchLen=0;
-
-            /* find next match */
-            if (rematch(re, *str, &match)) {
-                grp0=match.groups;
-                matchLen=grp0->i[1] - grp0->i[0];
-
-                if (matchLen) { /* non-empty match */
-                    *str+=grp0->i[0]; /* advance to next match */
-
-                } else {
-                    (*str)++;
+            if (matchLen) { /* non-empty match */
+                if (!i && !grp0->i[0]) /* match at start */
+                    orig=*str+=grp0->i[1];
+                else {/* second pass or match not at start*/
+                    *str+=grp0->i[0]; 
+                    break;
                 }
 
             } else {
-                while (**str) (*str)++;
+                (*str)++;
+                break; /* no need for second pass to find end of token */
             }
 
         } else {
-            (*str)++;
+            while (**str) (*str)++;
         }
-
-    } else {
-        while (**str) (*str)++;
     }
 
+    /* copy the token */
     tokLen=*str-orig;
     if (*orig) {
         *token=(char *)realloc(*token, (1+tokLen)*sizeof(char));

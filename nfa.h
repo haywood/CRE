@@ -12,13 +12,15 @@
 enum {
     DOTALL=1 << 0,
     MATCHSTART=1 << 1,
-    MATCHEND=1 << 2
+    MATCHEND=1 << 2,
+    ICASE=1 << 3
 };
 
 enum {
     NONE=0,
     LPAREN=1 << 0,
-    MINUS=1 << 1
+    RPAREN=1 << 1,
+    MINUS=1 << 2
 };
 
 enum {
