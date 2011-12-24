@@ -14,12 +14,13 @@
 int main(int argc, char **argv)
 {
     MatchObject m;
-    int matched, i, k;
+    int matched, i, k, flags;
     char *str, *token;
     RE *re;
 
     if (argc > 2) {
-        re = compileRE(argv[1], MATCHSTART|MATCHEND|ICASE|FINDALL);
+        flags=0;
+        re = compileRE(argv[1], flags);
 
         str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
         strcpy(str, argv[2]);
