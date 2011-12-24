@@ -87,7 +87,7 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     int replLen, strLen, matchLen;
     int keepGoing, pos, count, lenChange;
     MatchObject m;
-    Group *grp0;
+    Group grp0;
     char *matchBegin, *matchEnd;
 
     if (!(re && str && *str && repl)) return 0;
@@ -102,9 +102,9 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     memset(&m, 0, sizeof(MatchObject));
 
     while (keepGoing && *matchBegin && rematch(re, matchBegin, &m)) {
-        grp0=m.groups;
-        matchEnd=matchBegin+grp0->i[1];
-        matchBegin=matchBegin+grp0->i[0];
+        grp0=m.groups[0];
+        matchBegin+=grp0.gbeg;
+        matchEnd=matchBegin+grp0.gend;
         matchLen=matchEnd-matchBegin;
         pos=matchBegin-*str;
 
@@ -152,7 +152,7 @@ inline char *resep(RE *re, char **str, char **token)
 {
     int matchLen, tokLen, i;
     MatchObject match;
-    Group *grp0;
+    Group grp0;
     char *orig;
 
     if (!re || !str || !*str || !**str) return NULL;
@@ -160,20 +160,19 @@ inline char *resep(RE *re, char **str, char **token)
     memset(&match, 0, sizeof(MatchObject));
 
     orig=*str;
-    grp0=NULL;
 
     /* find first match */
     for (i=0; **str && i < 2; ++i) {
         matchLen=0;
         if (rematch(re, *str, &match)) {
-            grp0=match.groups;
-            matchLen=grp0->i[1] - grp0->i[0];
+            grp0=match.groups[0];
+            matchLen=grp0.gend - grp0.gbeg;
 
             if (matchLen) { /* non-empty match */
-                if (!i && !grp0->i[0]) /* match at start */
-                    orig=*str+=grp0->i[1];
+                if (!i && !grp0.gbeg) /* match at start */
+                    orig=*str+=grp0.gend;
                 else {/* second pass or match not at start*/
-                    *str+=grp0->i[0]; 
+                    *str+=grp0.gbeg; 
                     break;
                 }
 
@@ -205,7 +204,7 @@ inline char *resep(RE *re, char **str, char **token)
         *token=NULL;
         *str=NULL;
     }
-    free(grp0);
+    free(match.groups);
 
     return *token;
 }

@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     RE *re;
 
     if (argc > 2) {
-        re = compileRE(argv[1], 0);
+        re = compileRE(argv[1], MATCHSTART|MATCHEND|ICASE|FINDALL);
 
         str = (char *)calloc(1+strlen(argv[2]), sizeof(char));
         strcpy(str, argv[2]);
@@ -30,12 +30,14 @@ int main(int argc, char **argv)
         printf("%u capture groups:\n", m.n);
         if (m.groups) {
             for (i = 0; i <= m.n; ++i) {
-                printf("%d, %d: ", m.groups[i].i[0], m.groups[i].i[1]);
-                for (k = m.groups[i].i[0]; k < m.groups[i].i[1]; ++k)
+                printf("%d, %d: ", m.groups[i].gbeg, m.groups[i].gend);
+                for (k = m.groups[i].gbeg; k < m.groups[i].gend; ++k)
                     putchar(m.str[k]);
                 putchar('\n');
             }
         }
+
+        puts("testing rereplace");
         free(m.groups);
         rereplace(re, &str, ":)", 1);
         printf("%s\n", str);
@@ -44,6 +46,7 @@ int main(int argc, char **argv)
         str=argv[2];
         token=NULL;
 
+        puts("testing resep");
         while (resep(re, &str, &token)) {
             printf("%s\n", token);
         }

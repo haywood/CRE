@@ -1,39 +1,51 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "nfa.h"
 
 void addGroup(MatchObject *m, int b, int e)
 {
-    int i, swapped;
-    Group g[2];
+    Group newG, *oldG;
+    int i;
 
     if (!m) return;
 
-    i=m->n;
-    m->groups = (Group *)realloc(m->groups, ++m->n*sizeof(Group));
-    m->groups[m->n-1].i[0] = b;
-    m->groups[m->n-1].i[1] = e;
-    do {
-        swapped = 0;
-        for (; i > 0; --i) {
-            g[0] = m->groups[i];
-            g[1] = m->groups[i-1];
-            if (g[0].i[0] < g[1].i[0] || (g[0].i[0] == g[1].i[0] && g[0].i[1] > g[1].i[1])) {
-                m->groups[i-1] = g[0];
-                m->groups[i] = g[1];
-                swapped = 1;
-            }
+    oldG=m->groups;
+    newG.gbeg=b;
+    newG.gend=e;
 
-        }
-    } while (swapped);
+    while (oldG != m->groups+m->n) {
+        if (b < oldG->gbeg) {
+            break;
+
+        } else if (b == oldG->gbeg) {
+            if (e > oldG->gend)
+                break;
+
+            else if (e == oldG->gend)
+                return;
+
+            else oldG++;
+
+        } else oldG++;
+    }
+
+    i=oldG - m->groups;
+    m->groups=(Group *)realloc(m->groups, ++m->n*sizeof(Group));
+    if (!m->groups) {
+        fprintf(stderr, "error: addGroup: out of memory\n");
+        exit(1);
+    }
+    memmove(m->groups+i+1, m->groups+i, (m->n-i-1)*sizeof(Group));
+    m->groups[i]=newG;
 }
 
 Group *group(int b, int e)
 {
     Group *g = (Group *)malloc(sizeof(Group));
-    g->i[0] = b;
-    g->i[1] = e;
+    g->gbeg = b;
+    g->gend = e;
     return g;
 }
 

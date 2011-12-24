@@ -13,7 +13,8 @@ enum {
     DOTALL=1 << 0,
     MATCHSTART=1 << 1,
     MATCHEND=1 << 2,
-    ICASE=1 << 3
+    ICASE=1 << 3,
+    FINDALL=1 << 4
 };
 
 enum {
@@ -36,13 +37,12 @@ typedef struct _Node Node;
 typedef struct _State State;
 
 struct _Group {
-    int i[2];
+    int gbeg, gend;
 };
-
 struct _MatchObject {
     const char *str;
-    int n;
     Group *groups;
+    int n;
 };
 
 struct _NFA {
