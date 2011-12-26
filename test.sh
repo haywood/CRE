@@ -1,5 +1,7 @@
 #!/bin/sh
 
+make
+
 ./nfa 'a' 'abcabcabc'
 ./nfa 'a*' 'abcabcabc'
 ./nfa 'a*?' 'abcabcabc'
