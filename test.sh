@@ -28,3 +28,23 @@ make
 
 ./nfa 'ab*' 'abcabcabc'
 ./nfa 'ab*?' 'abcabcabc'
+./nfa 'ab+' 'abcabcabc'
+./nfa 'ab+?' 'abcabcabc'
+./nfa 'ab?' 'abcabcabc'
+./nfa 'ab??' 'abcabcabc'
+
+./nfa '[abc]' 'abcabcabc'
+./nfa '[^abc]' 'abcabcabc'
+./nfa '[abc]*' 'abcabcabc'
+./nfa '[^abc]*' 'abcabcabc'
+./nfa '[abc]+' 'abcabcabc'
+./nfa '[^abc]+' 'abcabcabc'
+./nfa '[abc]?' 'abcabcabc'
+./nfa '[^abc]?' 'abcabcabc'
+
+./nfa '[abc]*?' 'abcabcabc'
+./nfa '[^abc]*?' 'abcabcabc'
+./nfa '[abc]+?' 'abcabcabc'
+./nfa '[^abc]+?' 'abcabcabc'
+./nfa '[abc]??' 'abcabcabc'
+./nfa '[^abc]??' 'abcabcabc'
