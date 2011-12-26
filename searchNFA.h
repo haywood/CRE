@@ -3,7 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
-#include "nfa.h"
+
+#include "MatchObject.h"
+#include "buildMYT.h"
 
 typedef struct _SNode {
     State *s;
@@ -12,7 +14,7 @@ typedef struct _SNode {
                   *next;
 } SNode;
 
-SNode *snode(State *s, int i, SNode *parent, SNode *next)
+inline SNode *snode(State *s, int i, SNode *parent, SNode *next)
 {
     SNode *n = (SNode *)malloc(sizeof(SNode));
     n->s = s;
@@ -22,7 +24,7 @@ SNode *snode(State *s, int i, SNode *parent, SNode *next)
     return n;
 }
 
-SNode *pushSNode(SNode *l, unsigned i, SNode *parent, Node *n) 
+inline SNode *pushSNode(SNode *l, unsigned i, SNode *parent, Node *n) 
 {
     while (n) {
         l=snode(n->s, i, parent, l);
@@ -31,11 +33,42 @@ SNode *pushSNode(SNode *l, unsigned i, SNode *parent, Node *n)
     return l;
 }
 
-SNode *search_rec(State *s, State *a, const char *str, int start, int finish, int flags)
+inline int stateHasChild(State *s) { return s && (s->lchild || s->rchild); }
+
+inline SNode *matchSNode(SNode *frontier, SNode *curr, const char c, int icase)
+{
+    SymbolVector *symbols;
+    Node *states=NULL;
+    State *s=curr->s;
+    int i=curr->i;
+
+    symbols=s->symbols;
+
+    if (s->lchild) states=pushNode(states, s->lchild);
+    if (s->rchild) states=pushNode(states, s->rchild);
+
+    if (symVecContains(symbols, EPSILON)) {
+        frontier=pushSNode(frontier, i, curr, states);
+
+    } 
+    
+    if (c) {
+        if (symVecContains(symbols, c)) {
+            frontier=pushSNode(frontier, i+1, curr, states);
+
+        } else if (icase) {
+            if (symVecContains(symbols, tolower(c)) || symVecContains(symbols, toupper(c)))
+                frontier=pushSNode(frontier, i+1, curr, states);
+
+        }
+    }
+    return frontier;
+}
+
+inline SNode *search_rec(State *s, State *a, const char *str, int start, int finish, int flags)
 {
     SNode *curr, *frontier, *sn, *pn, *nn, *matches, *closedList;
     int alive, matchstart, matchend, i, icase, findall;
-    char currChar;
 
     matchstart=flags & MATCHSTART;
     matchend=flags & MATCHEND;
@@ -85,7 +118,7 @@ SNode *search_rec(State *s, State *a, const char *str, int start, int finish, in
 
                 sn = search_rec(curr->s, curr->s->mate, str, curr->i, finish, 0);
                 if (!sn) frontier = snode(curr->s->mate, curr->i, curr, frontier);
-                else {
+                else { /* free all the returned SNodes */
                     do {
                         nn=sn->next;
                         do {
@@ -98,22 +131,7 @@ SNode *search_rec(State *s, State *a, const char *str, int start, int finish, in
                 }
 
             } else if (curr->s != a) { 
-
-                /* epsilon transitions */
-                frontier = pushSNode(frontier, curr->i, curr, getChild(curr->s, EPSILON));
-
-                /* matching transitions */
-                if (curr->i < finish) {
-                    currChar=str[curr->i];
-                    if (currChar) {
-                        if (!icase) frontier = pushSNode(frontier, curr->i+1, curr, getChild(curr->s, currChar));
-                        else {
-                            frontier = pushSNode(frontier, curr->i+1, curr, getChild(curr->s, tolower(currChar)));
-                            frontier = pushSNode(frontier, curr->i+1, curr, getChild(curr->s, toupper(currChar)));
-                        }
-                    }
-                }
-
+                frontier=matchSNode(frontier, curr, str[curr->i], icase);
             }
         }
     } /* while frontier */
@@ -126,7 +144,7 @@ SNode *search_rec(State *s, State *a, const char *str, int start, int finish, in
     return matches;
 }
 
-int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
+inline int search(State *s, State *a, const char *str, MatchObject *m, int flags) {
 
     SNode *beg, *end, *match, *sn;
     int paren, lparen, rparen;

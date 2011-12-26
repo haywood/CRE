@@ -2,14 +2,13 @@
 #define RE_H_
 
 #include "checkRE.h"
-#include "buildMYT.h"
-#include "nfa.h"
 
 typedef struct _RE RE;
 
 struct _RE {
     char *restr;
-    NFA *nfa;
+    State *nfa;
+    int flags;
 };
 
 
@@ -19,6 +18,7 @@ struct _RE {
  * flags is a combination of compilation options. Currently only DOTALL to make the '.' operator match whitespace is supported.
  * The return value is a pointer to the compiled RE.
  */
+
 inline RE *compileRE(const char *restr, int flags)
 {
     const char *beg, *end;
@@ -48,10 +48,8 @@ inline RE *compileRE(const char *restr, int flags)
     recpy=(char *)calloc((1+(end-beg)), sizeof(char));
     memcpy(recpy, beg, end-beg);
 
-    re->nfa=(NFA *)malloc(sizeof(NFA));
-    re->nfa->start=buildMYT(recpy, recpy+strlen(recpy), flags);
-    re->nfa->accept=re->nfa->start->mate;
-    re->nfa->flags=flags;
+    re->nfa=buildMYT(recpy, recpy+strlen(recpy), flags);
+    re->flags=flags;
     re->restr=(char *)calloc((1+reLen), sizeof(char));
     memcpy(re->restr, restr, reLen);
 
@@ -66,10 +64,11 @@ inline RE *compileRE(const char *restr, int flags)
  * Returns 1 if there is a  match and zero otherwise.
  * If there is a match, then the contents of m are overriden. Otherwise, m is unmodified.
  */
+
 inline int rematch(RE *re, const char *str, MatchObject *m)
 {
     if (!(re && str)) return 0;
-    return search(re->nfa->start, re->nfa->accept, str, m, re->nfa->flags);
+    return search(re->nfa, re->nfa->mate, str, m, re->flags);
 }
 
 /**
@@ -96,16 +95,16 @@ inline int rereplace(RE * re, char **str, const char *repl, int replaceAll)
     strLen=strlen(*str);
     count=0;
 
-    keepGoing=1;
     matchBegin=*str;
+    keepGoing=1;
 
     memset(&m, 0, sizeof(MatchObject));
 
     while (keepGoing && *matchBegin && rematch(re, matchBegin, &m)) {
         grp0=m.groups[0];
+        matchLen=grp0.gend - grp0.gbeg;
         matchBegin+=grp0.gbeg;
-        matchEnd=matchBegin+grp0.gend;
-        matchLen=matchEnd-matchBegin;
+        matchEnd=matchBegin+matchLen;
         pos=matchBegin-*str;
 
         if (matchLen) {
@@ -218,13 +217,14 @@ inline void freere(RE *re)
 
     if (!re) return;
     if (re->nfa) {
-        n=getChild(re->nfa->start, STATE_LIST);
+        n=re->nfa->states;
         while ((t=n)) {
+            free(n->s->symbols);
             free(n->s);
             n=n->next;
             free(t);
         }
-        free(re->nfa->start);
+        free(re->nfa->symbols);
         free(re->nfa);
     }
     free(re->restr);

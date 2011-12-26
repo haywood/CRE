@@ -52,7 +52,9 @@ int main(int argc, char **argv)
             printf("%s\n", token);
         }
         freere(re);
+        puts("");
     }
+
     return 0;
 }
 

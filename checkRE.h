@@ -4,7 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "nfa.h"
+#include "searchNFA.h"
 
 #define END_ERROR "error: in checkRE, expected ')', quantifier or literal, but found %c\n"
 #define BRACE_ERROR "error: in checkRE, malformed fixed repetition\n"

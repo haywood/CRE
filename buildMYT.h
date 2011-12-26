@@ -1,80 +1,99 @@
 #ifndef MYT_H_
 #define MYT_H_
 
-#include "nfa.h"
+#include "State.h"
 
 inline State *buildMYT(const char *restart, const char *reend, int flags);
 
-inline State *literalNFA(int literal, int mode)
+inline State *basisNFA(SymbolVector *symbols)
 {
     State *accept, *start;
-    int reChar;
 
-    accept=state(NONE, NULL);
-    start=state(mode, accept);
-    addChild(start, STATE_LIST, accept);
+    accept=state(symbols, NONE, NULL);
+    start=state(epsilonVector(), NONE, accept);
+    addState(start, accept);
+    start->lchild=accept;
 
-    if (mode & MINUS) {
-        for (reChar=1; reChar <=CHAR_MAX; ++reChar)
-            if (legalChar(reChar) && reChar != literal)
-                addChild(start, reChar, accept);
-    } else addChild(start, literal, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start->mate->lchild=accept;
+    addState(start, accept);
+    start->mate=accept;
 
     return start;
 }
 
-inline State *classNFA(int classCode, int mode)
+inline State *literalNFA(int literal, int mode)
 {
-    State *accept, *start;
+    SymbolVector *symbols;
     int reChar;
 
-    accept=state(NONE, NULL);
-    start=state(mode, accept);
-    addChild(start, STATE_LIST, accept);
+    symbols=symbolVector();
+
+    if (mode & MINUS) {
+        for (reChar=1; reChar <=CHAR_MAX; ++reChar)
+            if (legalChar(reChar) && reChar != literal)
+                addSymbol(symbols, reChar);
+    }
+    
+    else addSymbol(symbols, literal);
+
+    return basisNFA(symbols);
+}
+
+inline State *classNFA(int classCode, int mode)
+{
+    SymbolVector *symbols;
+    int reChar;
+
+    symbols=symbolVector();
 
     if (mode & MINUS) {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
             if (legalChar(reChar) && !isCharClassMember(reChar, classCode))
-                addChild(start, reChar, accept);
+                addSymbol(symbols, reChar);
 
     } else {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
             if (legalChar(reChar) && isCharClassMember(reChar, classCode))
-                addChild(start, reChar, accept);
+                addSymbol(symbols, reChar);
     }
 
-    return start;
+    return basisNFA(symbols);
 
 }
 
 inline State *wildcardNFA(int flags, int mode)
 {
-    int reChar, dotall=flags & DOTALL, negate=mode & MINUS;
-    State *accept, *start;
+    int reChar, dotall=flags & DOTALL;
+    SymbolVector *symbols;
 
-    accept=state(NONE, NULL);
-    start=state(mode, accept);
-    addChild(start, STATE_LIST, accept);
+    symbols=symbolVector();
 
-    if (negate) {
+    if (mode & MINUS) {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
             if (legalChar(reChar) && !dotall && isspace(reChar))
-                addChild(start, reChar, accept);
+                addSymbol(symbols, reChar);
 
     } else {
         for (reChar=1; reChar <= CHAR_MAX; ++reChar)
             if (legalChar(reChar) && (dotall || !isspace(reChar)))
-                addChild(start, reChar, accept);
+                addSymbol(symbols, reChar);
     }
 
-    return start;
+    return basisNFA(symbols);
 }
 
 inline State *concatNFA(State *start0, State *start1)
 {
     if (!(start0 && start1)) return NULL;
-    appendChildren(start0, STATE_LIST, start1);
-    addChild(start0->mate, EPSILON, start1);
+    addStates(start0, start1->states);
+    addState(start0, start1);
+
+    if (!start0->mate->lchild)
+        start0->mate->lchild=start1;
+
+    else start0->mate->rchild=start1;
+
     start0->mate=start1->mate;
     return start0;
 }
@@ -85,18 +104,20 @@ inline State *disjunctNFA(State *start0, State *start1)
 
     if (!(start0 && start1)) return NULL;
 
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start=state(epsilonVector(), NONE, accept);
 
-    appendChildren(start, STATE_LIST, start0);
-    appendChildren(start, STATE_LIST, start1);
-    addChild(start, STATE_LIST, accept);
+    addStates(start, start0->states);
+    addStates(start, start1->states);
+    addState(start, accept);
+    addState(start, start0);
+    addState(start, start1);
 
-    addChild(start, EPSILON, start0);
-    addChild(start, EPSILON, start1);
+    start->lchild=start0;
+    start->rchild=start1;
 
-    addChild(start0->mate, EPSILON, accept);
-    addChild(start1->mate, EPSILON , accept);
+    start0->mate->lchild=accept;
+    start1->mate->lchild=accept;
 
     start0->mate=accept;
     start1->mate=accept;
@@ -110,25 +131,26 @@ inline State *closureNFA(State *start0, int greedy)
 
     if (!start0) return NULL;
 
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start=state(epsilonVector(), NONE, accept);
 
-    appendChildren(start, STATE_LIST, start0);
-    addChild(start, STATE_LIST, start0);
+    addStates(start, start0->states);
+    addState(start, start0);
+    addState(start, accept);
 
     if (greedy) {
-        addChild(start, EPSILON, start0);
-        addChild(start, EPSILON, accept); /* create the skip */
+        start->lchild=start0;
+        start->rchild=accept; /* create the skip */
 
-        addChild(start0->mate, EPSILON, start0); /* create the loop */
-        addChild(start0->mate, EPSILON, accept);
+        start0->mate->lchild=start0; /* create the loop */
+        start0->mate->rchild=accept;
 
     } else {
-        addChild(start, EPSILON, accept); /* create the skip */
-        addChild(start, EPSILON, start0);
+        start->lchild=accept; /* create the skip */
+        start->rchild=start0;
 
-        addChild(start0->mate, EPSILON, accept);
-        addChild(start0->mate, EPSILON, start0); /* create the loop */
+        start0->mate->lchild=accept;
+        start0->mate->rchild=start0; /* create the loop */
     }
 
     start0->mate=accept;
@@ -142,21 +164,22 @@ inline State *repeatNFA(State *start0, int greedy)
 
     if (!start0) return NULL;
 
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start=state(epsilonVector(), NONE, accept);
 
-    appendChildren(start, STATE_LIST, start0);
-    addChild(start, STATE_LIST, start0);
+    addStates(start, start0->states);
+    addState(start, start0);
+    addState(start, accept);
 
-    addChild(start, EPSILON, start0);
+    start->lchild=start0;
 
     if (greedy) {
-        addChild(start0->mate, EPSILON, start0); /* create the loop */
-        addChild(start0->mate, EPSILON, accept);
+        start0->mate->lchild=start0; /* create the loop */
+        start0->mate->rchild=accept;
 
     } else {
-        addChild(start0->mate, EPSILON, accept);
-        addChild(start0->mate, EPSILON, start0); /* create the loop */
+        start0->mate->lchild=accept; 
+        start0->mate->rchild=start0; /* create the loop */
     }
 
     start0->mate=accept;
@@ -170,21 +193,26 @@ inline State *zeroOrOneNFA(State *start0, int greedy)
 
     if (!start0) return NULL;
 
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start=state(epsilonVector(), NONE, accept);
 
-    appendChildren(start, STATE_LIST, start0);
-    addChild(start, STATE_LIST, start0);
-    addChild(start0->mate, EPSILON, accept);
+    addStates(start, start0->states);
+    addState(start, start0);
+    addState(start, accept);
+
+    start0->mate->lchild=accept;
 
     if (greedy) {
-        addChild(start, EPSILON, start0);
-        addChild(start, EPSILON, accept); /* create the skip */
-    
+        start->lchild=start0;
+        start->rchild=accept; /* create the skip */
+
     } else {
-        addChild(start, EPSILON, accept); /* create the skip */
-        addChild(start, EPSILON, start0);
+        start->lchild=accept; /* create the skip */
+        start->rchild=start0;
+
     }
+
+    start0->mate=accept;
 
     return start;
 }
@@ -194,29 +222,32 @@ inline State *zeroOrOneNFA(State *start0, int greedy)
  */
 State *posBracket(const char *brackstart, const char *brackend)
 {
-    State *accept, *start;
+    SymbolVector *symbols;
     int reChar;
+
+    symbols=symbolVector();
 
     if (!(brackstart && brackend)) return NULL;
     
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
-
     if (brackstart == brackend) {
-        addChild(start, EPSILON, accept);
+        addSymbol(symbols, EPSILON);
+        
     } else {
         while (brackstart != brackend) {
             if (*brackstart == '\\' && isCharClass(*++brackstart)) {
                 for (reChar=1; reChar <= CHAR_MAX; ++reChar)
                     if (legalChar(reChar) && isCharClassMember(reChar, *brackstart))
-                        addChild(start, reChar, accept);
+                        addSymbol(symbols, reChar);
 
-            } else addChild(start, *brackstart, accept);
+            } 
+            
+            else addSymbol(symbols, *brackstart);
+
             brackstart++;
         }
     }
 
-    return start;
+    return basisNFA(symbols);
 }
 
 /**
@@ -224,32 +255,35 @@ State *posBracket(const char *brackstart, const char *brackend)
  */
 State *negBracket(const char *brackstart, const char *brackend)
 {
-    State *accept, *start;
+    SymbolVector *symbols;
     int reChar;
+
+    symbols=symbolVector();
 
     if (!(brackstart && brackend)) return NULL;
     
-    accept=state(NONE, NULL);
-    start=state(NONE, accept);
-
     if (brackstart == brackend) {
-        addChild(start, EPSILON, accept);
+        addSymbol(symbols, EPSILON);
+        
     } else {
-        for (reChar=1; reChar <= CHAR_MAX; ++reChar)
-            if (legalChar(reChar)) addChild(start, reChar, accept);
+        symVecCompliment(symbols, symbols);
+        removeSymbol(symbols, EPSILON);
 
         while (brackstart != brackend) {
             if (*brackstart == '\\' && isCharClass(*++brackstart)) {
                 for (reChar=1; reChar <= CHAR_MAX; ++reChar)
                     if (legalChar(reChar) && isCharClassMember(reChar, *brackstart))
-                        start->trans[reChar]=popNode(start->trans[reChar]);
+                        removeSymbol(symbols, reChar);
 
-            } else start->trans[(int)*brackstart]=popNode(start->trans[(int)*brackstart]);
+            } 
+            
+            else removeSymbol(symbols, *brackstart);
+
             brackstart++;
         }
     }
 
-    return start;
+    return basisNFA(symbols);
 }
 
 /**
@@ -257,15 +291,10 @@ State *negBracket(const char *brackstart, const char *brackend)
  */
 inline State *bracketNFA(const char *brackstart, const char *brackend, int mode)
 {
-    State *accept, *start;
-
     if (!(brackstart && brackend)) return NULL;
     
     if (brackstart == brackend) { /* empty brackets */
-        accept=state(NONE, NULL);
-        start=state(NONE, accept);
-        addChild(start, EPSILON, accept);
-        return start;
+        return literalNFA(EPSILON, NONE);
 
     } else {
         if (*brackstart == '^' && brackstart+1 != brackend) {
@@ -283,7 +312,8 @@ inline State *bracketNFA(const char *brackstart, const char *brackend, int mode)
  */
 inline State *fixedRepeatNFA(State *start, const char *restart, const char *reend, int minReps, int maxReps, int greedy, int flags)
 {
-    State *accept=state(NONE, NULL), *curr, *accept0;
+    State *accept=state(epsilonVector(), NONE, NULL);
+    State *curr, *accept0;
     int count=0;
 
     while (++count < maxReps) {
@@ -292,16 +322,16 @@ inline State *fixedRepeatNFA(State *start, const char *restart, const char *reen
         accept0=start->mate;
 
         if (!greedy && count >= minReps)
-            addChild(accept0, EPSILON, accept);
+            accept0->lchild=accept;
 
         start=concatNFA(start, curr);
 
         if (greedy && count >= minReps)
-            addChild(accept0, EPSILON, accept);
+            accept0->rchild=accept;
     }
 
-    addChild(start->mate, EPSILON, accept);
-    addChild(start, STATE_LIST, accept);
+    start->mate->lchild=accept;
+    addState(start, accept);
     start->mate=accept;
 
     return start;
