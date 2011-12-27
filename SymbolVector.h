@@ -7,11 +7,11 @@
 
 #define EPSILON 0
 
-#define INT_IN_BITS ((signed)(8*sizeof(int)))
+#define INT_IN_BITS ((signed)(8*sizeof(long)))
 
 #define RE_SYM_VEC_LEN ((signed)((CHAR_MAX+1)/INT_IN_BITS))
 
-typedef int SymbolVector[RE_SYM_VEC_LEN];
+typedef long SymbolVector[RE_SYM_VEC_LEN];
 
 inline int legalChar(char c) { return isspace(c) || isgraph(c); }
 
