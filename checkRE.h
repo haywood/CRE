@@ -54,6 +54,11 @@ inline int checkRE(const char *re, const char *reend)
 
         atEnd=re+1 == reend;
 
+        if (atStart && (*re == '*' || *re == '+' || *re == '?' || *re == '{')) {
+                fprintf(stderr, "error: in checkRE, expected literal, '[', or '(', but found %c instead\n", *re);
+                error=1;
+        }
+
         if (!legalChar(*re)) {
             fprintf(stderr, "error: in checkRE, illegal control chracter: %c\n", *re);
             error=1;
@@ -90,7 +95,8 @@ inline int checkRE(const char *re, const char *reend)
                 exit(1);
             } 
             
-            return checkRE(subre, re) && checkRE(re+1, reend); 
+            error=error || checkRE(subre, re);
+            re++;
 
         } else if (*re == '[') {
             subre=++re;
@@ -131,7 +137,7 @@ inline int checkRE(const char *re, const char *reend)
         exit(1);
     }
 
-    return 1;
+    return error;
 }
 
 #endif /* CHECK_RE_H_ */

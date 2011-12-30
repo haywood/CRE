@@ -9,14 +9,10 @@ inline State *basisNFA(SymbolVector *symbols)
 {
     State *accept, *start;
 
-    accept=state(symbols, NONE, NULL);
-    start=state(epsilonVector(), NONE, accept);
+    accept=state(epsilonVector(), NONE, NULL);
+    start=state(symbols, NONE, accept);
     addState(start, accept);
     start->lchild=accept;
-
-    accept=state(epsilonVector(), NONE, NULL);
-    start->mate->lchild=accept;
-    addState(start, accept);
     start->mate=accept;
 
     return start;
